@@ -137,22 +137,19 @@ ChargeSafe의 주요 사용 대상은 다음과 같습니다.
 - 공동주택 공용 충전 공간
 - 야간 또는 장시간 충전이 필요한 사용자
 
-<br/>
-
 ## System Architecture
-[전동휠체어 도킹]
-        ↓
-[센서 데이터 수집]
-온도 / 전류 / 전압 / 연기 / 가스
-        ↓
-[위험도 판단 알고리즘]
-정상 / 주의 / 경고 / 위험
-        ↓
-[자동 제어]
-릴레이 차단 / 팬 작동 / 부저 / LED / LCD
-        ↓
-[보호자 알림 및 기록]
-앱 알림 / 충전 이력 저장 / 상태 확인
+
+ChargeSafe는 전동휠체어가 도킹스테이션에 연결되면 센서 데이터를 수집하고, 소프트웨어가 위험도를 판단한 뒤 자동 제어와 보호자 알림을 수행하는 구조입니다.
+
+| 단계 | 구성 요소 | 역할 |
+|---|---|---|
+| 1. 도킹 및 충전 시작 | 전동휠체어, 도킹스테이션 | 사용자가 전동휠체어를 도킹하면 충전 연결 상태를 인식하고 충전을 시작 |
+| 2. 센서 데이터 수집 | 온도 센서, 전류 센서, 전압 센서, MQ-2 센서 | 충전 중 배터리의 온도, 전류, 전압, 연기, 가스 데이터를 실시간으로 측정 |
+| 3. 데이터 처리 | ESP32 / Arduino | 센서값을 수집하고 노이즈를 보정한 뒤 소프트웨어 판단 로직으로 전달 |
+| 4. 위험도 판단 | Risk Detection Logic | 수집된 데이터를 기반으로 정상, 주의, 경고, 위험 상태를 분류 |
+| 5. 자동 제어 | 릴레이, 냉각팬, LED, LCD, 부저 | 위험도에 따라 충전 유지, 냉각팬 작동, 경고 출력, 충전 차단 수행 |
+| 6. 서버 연동 | Backend / Database | 충전 상태, 센서 데이터, 차단 이력, 위험 발생 기록을 저장 |
+| 7. 사용자 알림 | Web/App Dashboard | 보호자가 실시간 충전 상태를 확인하고 이상 상황 발생 시 알림 수신 |
 
 <br/>
 
@@ -189,30 +186,30 @@ ELSE:
 
 ## Repository Structure
 
-ChargeSafe/
-├── README.md
-├── hardware/
-│   ├── circuit-diagram/
-│   ├── sensor-test/
-│   └── docking-design/
-├── firmware/
-│   ├── sensor-read/
-│   ├── risk-detection/
-│   └── actuator-control/
-├── frontend/
-│   ├── src/
-│   ├── public/
-│   └── package.json
-├── backend/
-│   ├── api/
-│   ├── database/
-│   └── notification/
-├── docs/
-│   ├── proposal/
-│   ├── presentation/
-│   └── references/
-└── assets/
-    ├── logo/
-    └── images/
-    
+| 폴더 / 파일 | 설명 |
+|---|---|
+| `README.md` | 프로젝트 개요, 기능, 역할 분담, 개발 계획을 정리한 문서 |
+| `hardware/` | 센서 회로, 도킹 구조, 부품 연결 자료를 관리하는 폴더 |
+| `hardware/circuit-diagram/` | 전류센서, 전압센서, 온도센서, MQ-2 센서, 릴레이 등의 회로도 |
+| `hardware/sensor-test/` | 각 센서의 개별 테스트 결과 및 측정값 기록 |
+| `hardware/docking-design/` | 전동휠체어 충전 도킹스테이션 구조 설계 자료 |
+| `firmware/` | ESP32 또는 Arduino에 업로드할 임베디드 제어 코드 |
+| `firmware/sensor-read/` | 온도, 전류, 전압, 연기, 가스 센서값을 읽는 코드 |
+| `firmware/risk-detection/` | 센서 데이터를 기반으로 정상/주의/경고/위험 단계를 판단하는 코드 |
+| `firmware/actuator-control/` | 릴레이, 냉각팬, LED, 부저, LCD를 제어하는 코드 |
+| `frontend/` | 보호자용 웹 대시보드 또는 앱 화면 구현 폴더 |
+| `frontend/src/` | 실시간 충전 상태 화면, 위험 알림 화면, 충전 이력 화면 코드 |
+| `frontend/public/` | 로고, 아이콘 등 정적 파일 관리 |
+| `backend/` | 충전 데이터 저장, 알림 전송, 사용자/기기 관리를 위한 서버 코드 |
+| `backend/api/` | 충전 상태 조회, 위험 알림, 이력 조회 관련 API |
+| `backend/database/` | 사용자, 기기, 충전 이력, 위험 발생 기록 데이터 구조 |
+| `backend/notification/` | 보호자 알림 전송 기능 |
+| `docs/` | 기획서, 발표 자료, 참고 자료 등 문서 관리 |
+| `docs/proposal/` | 캡스톤 기획안 및 문제 정의 자료 |
+| `docs/presentation/` | 발표용 PPT, 슬라이드 이미지, 시연 시나리오 |
+| `docs/references/` | 사고 사례, 통계 자료, 기술 참고 자료 |
+| `assets/` | 프로젝트에 사용되는 이미지, 로고, 시각 자료 |
+| `assets/logo/` | EngiNEAR 및 ChargeSafe 로고 |
+| `assets/images/` | 발표 자료나 README에 삽입할 이미지 |
+
 <br/>
