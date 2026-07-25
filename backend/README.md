@@ -8,9 +8,8 @@ ESP32가 보내는 센서 데이터를 수신·저장하고, 위험 단계를 �
 - Node.js + Express 5
 - PostgreSQL (로컬 또는 Supabase)
 - JWT 인증 (보호자 계정), API 키 인증 (기기)
-- 프론트엔드: 순수 HTML/CSS/JS (`public/` — 백엔드 서버가 함께 서빙, 빌드 불필요)
-  - 디자인은 `Figma/` 폴더의 Figma Make 시안(모바일 앱 스타일, 5탭 구조)을 기반으로 구현
-  - 반응형: 모바일(하단 탭) / 태블릿 768px~(2열 배치) / 노트북 1024px~(왼쪽 사이드바 + 이력 2패널)
+- 프론트엔드(보호자 대시보드)는 별도 담당/브랜치에서 관리하며 이 저장소에는 포함되지 않습니다.
+  (로컬 개발용 정적 파일 `public/`, 디자인 시안 `Figma/`는 `.gitignore`로 저장소에서 제외)
 
 ## 시작하기
 
@@ -35,40 +34,46 @@ npm run dev
 시연·프론트엔드 개발용 샘플 충전 세션이 필요하면:
 
 ```bash
-node scripts/seed-demo.js 1   # 1 = device_id
+node database/seed-demo.js 1   # 1 = device_id
 ```
 
 ## 프로젝트 구조
 
+루트 README의 `backend/api · database · notification` 구조를 따릅니다.
+
 ```
-migrations/          SQL 마이그레이션 (번호 순서대로 적용)
-scripts/migrate.js   마이그레이션 실행기
-scripts/seed-demo.js 시연용 샘플 충전 세션 생성
-public/              보호자 대시보드 (정적 파일, Figma 시안 기반)
-  index.html         로그인 + 5탭 화면 (홈/모니터링/이력/알림/설정)
-  css/styles.css     Figma 디자인 토큰 기반 스타일
-  js/api.js          API 호출 래퍼 (JWT 처리)
-  js/icons.js        인라인 SVG 아이콘 세트
-  js/chart.js        원형 게이지, 실시간 영역차트, 세션 상세 차트
-  js/app.js          탭 전환, 3초 폴링, 기기 등록, CSV 보고서
-Figma/               팀에서 만든 Figma Make 디자인 시안 (React, 참고용)
-src/
-  app.js           Express 앱 (라우트 등록)
-  server.js        서버 실행 진입점
-  config/db.js     PostgreSQL 커넥션 풀
-  middleware/
-    userAuth.js    보호자 JWT 인증
-    deviceAuth.js  ESP32 API 키 인증
-  routes/
-    auth.routes.js     회원가입 / 로그인
-    devices.routes.js  기기 등록·목록·상태·이력·이벤트
-    sessions.routes.js 세션별 센서 기록 (그래프용)
-    ingest.routes.js   ESP32 데이터 수신
-  services/
-    ingest.service.js       수신 처리 (세션 관리 + 상태 갱신)
-    risk.service.js         위험 단계 판단 (정상/주의/경고/위험)
-    notification.service.js 보호자 알림 (현재 DB 기록 + 콘솔, FCM 연동 예정)
+server.js                     서버 실행 진입점
+app.js                        Express 앱 (미들웨어 + 라우트 등록)
+
+api/                          API 엔드포인트 + 인증·처리 로직
+  auth.routes.js              회원가입 / 로그인
+  devices.routes.js           기기 등록·목록·상태·이력·이벤트
+  sessions.routes.js          세션별 센서 기록 (그래프용)
+  ingest.routes.js            ESP32 데이터 수신
+  push.routes.js              FCM 푸시 토큰 등록/해제
+  userAuth.js                 보호자 JWT 인증 미들웨어
+  deviceAuth.js               ESP32 API 키 인증 미들웨어
+  ingest.service.js           수신 처리 (세션 관리 + 상태 갱신)
+  risk.service.js             위험 단계 판단 (정상/주의/경고/위험)
+
+database/                     데이터베이스
+  db.js                       PostgreSQL 커넥션 풀
+  migrate.js                  마이그레이션 실행기
+  seed-demo.js                시연용 샘플 충전 세션 생성
+  migrations/                 SQL 마이그레이션 (번호 순서대로 적용)
+    001_init.sql              사용자·기기·세션·센서·위험이벤트·알림 스키마
+    002_push_tokens.sql       FCM 푸시 토큰 테이블
+
+notification/                 보호자 알림
+  notification.service.js     FCM 발송 + notifications 테이블 기록
+  firebase.js                 Firebase Admin(FCM) 초기화
+
+render.yaml / DEPLOY.md        배포 설정 및 가이드
+.env.example                   환경 변수 예시
 ```
+
+> 프론트엔드(`public/`, `Figma/`)와 비밀값(`.env`, `firebase-service-account.json`)은
+> `.gitignore`로 저장소에서 제외됩니다. 로컬 개발용으로만 `backend/` 아래에 존재합니다.
 
 ## API 요약
 
@@ -122,8 +127,8 @@ curl -X POST http://localhost:3000/api/ingest/readings \
 3. **VAPID 키 붙여넣기** — 프로젝트 설정 → 클라우드 메시징 → 웹 푸시 인증서 → "키 쌍 생성" →
    키 문자열을 같은 파일의 `FIREBASE_VAPID_KEY`에 붙여넣기
 4. **서비스 계정 키 저장** — 프로젝트 설정 → 서비스 계정 → "새 비공개 키 생성" →
-   내려받은 JSON 파일을 프로젝트 루트에 `firebase-service-account.json`으로 저장하고
-   `.env`에 `FIREBASE_SERVICE_ACCOUNT_PATH=./firebase-service-account.json` 추가 (이 파일은 절대 깃에 올리지 말 것 — .gitignore에 등록됨)
+   내려받은 JSON 파일을 `backend/` 폴더에 `firebase-service-account.json`으로 저장하고
+   `backend/.env`에 `FIREBASE_SERVICE_ACCOUNT_PATH=./firebase-service-account.json` 추가 (이 파일은 절대 깃에 올리지 말 것 — .gitignore에 등록됨)
 5. 서버 재시작 후, 대시보드 **설정 → 위험 알림 푸시 → 알림 켜기**를 누르면 해당 브라우저가 알림을 받기 시작합니다.
 
 동작 방식: 경고/위험 단계 진입 시 서버가 보호자의 등록된 모든 브라우저로 푸시를 발송하고,

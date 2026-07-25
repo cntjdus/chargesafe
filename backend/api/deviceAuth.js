@@ -1,5 +1,5 @@
 const crypto = require('crypto');
-const { pool } = require('../config/db');
+const { pool } = require('../database/db');
 
 async function deviceAuth(req, res, next) {
   const apiKey = req.header('X-API-Key');

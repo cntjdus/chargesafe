@@ -1,6 +1,6 @@
 // 시연·프론트엔드 개발용 샘플 충전 세션을 생성한다.
 // 사용법: node scripts/seed-demo.js <device_id>
-const { pool } = require('../src/config/db');
+const { pool } = require('./db');
 
 async function seed() {
   const deviceId = Number(process.argv[2]) || 1;

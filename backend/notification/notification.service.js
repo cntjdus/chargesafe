@@ -1,5 +1,5 @@
-const { pool } = require('../config/db');
-const { getMessaging } = require('../config/firebase');
+const { pool } = require('../database/db');
+const { getMessaging } = require('./firebase');
 
 const MESSAGES = {
   warning:

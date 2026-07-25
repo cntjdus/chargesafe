@@ -1,6 +1,6 @@
-const { pool } = require('../config/db');
+const { pool } = require('../database/db');
 const { assess, severity } = require('./risk.service');
-const { notifyGuardians } = require('./notification.service');
+const { notifyGuardians } = require('../notification/notification.service');
 
 function toNum(value) {
   if (value == null || value === '') return null;

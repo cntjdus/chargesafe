@@ -1,6 +1,6 @@
 const express = require('express');
-const deviceAuth = require('../middleware/deviceAuth');
-const { handleReading } = require('../services/ingest.service');
+const deviceAuth = require('./deviceAuth');
+const { handleReading } = require('./ingest.service');
 
 const router = express.Router();
 

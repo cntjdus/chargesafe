@@ -1,7 +1,7 @@
 const express = require('express');
-const { pool } = require('../config/db');
-const userAuth = require('../middleware/userAuth');
-const { getMessaging } = require('../config/firebase');
+const { pool } = require('../database/db');
+const userAuth = require('./userAuth');
+const { getMessaging } = require('../notification/firebase');
 
 const router = express.Router();
 router.use(userAuth);
