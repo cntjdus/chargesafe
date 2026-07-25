@@ -1,0 +1,11 @@
+# 의존성 / 비밀값 (하위 경로 포함 — backend/ 안의 것도 제외됨)
+node_modules/
+.env
+firebase-service-account.json
+
+# 로컬 개발 도구 (팀 저장소에 올리지 않음)
+.claude/
+
+# 프론트엔드 (담당 분리 — 백엔드 저장소에서는 제외)
+Figma/
+public/

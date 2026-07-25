@@ -1,0 +1,14 @@
+const express = require('express');
+const deviceAuth = require('../middleware/deviceAuth');
+const { handleReading } = require('../services/ingest.service');
+
+const router = express.Router();
+
+// ESP32 → 센서 데이터 수신
+// body: { charging, temperature, current_a, voltage_v, gas_ppm, smoke }
+router.post('/readings', deviceAuth, async (req, res) => {
+  const result = await handleReading(req.device, req.body || {});
+  res.json(result);
+});
+
+module.exports = router;
