@@ -4,7 +4,9 @@ const express = require('express');
 
 const app = express();
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+// 보호자 대시보드(frontend/)를 정적 파일로 서빙 — 웹 루트 = frontend/
+// 저장소에는 포함되지 않으므로(담당 분리), 배포 환경에서는 폴더가 없어 API 서버로만 동작한다
+app.use(express.static(path.join(__dirname, '..', 'frontend')));
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 

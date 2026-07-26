@@ -7,5 +7,5 @@ firebase-service-account.json
 .claude/
 
 # 프론트엔드 (담당 분리 — 백엔드 저장소에서는 제외)
-Figma/
-public/
+# 대시보드·디자인 시안은 frontend/ 아래에 있으며 로컬 개발용으로만 유지한다
+frontend/
