@@ -40,7 +40,7 @@ const ThemeModeModal = ({
 
             <HeaderText>
               <ModalTitle id="theme-mode-modal-title">
-                고대비 화면 설정
+                화면 설정
               </ModalTitle>
 
               <ModalDescription>

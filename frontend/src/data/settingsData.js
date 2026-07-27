@@ -235,7 +235,7 @@ export const settingSectionData = {
         },
         {
         id: "displayTheme",
-        title: "고대비 화면",
+        title: "화면 설정",
         description: "색상 대비 및 화면 테마를 설정합니다",
         type: "theme",
         icon: MonitorCog,
