@@ -214,8 +214,8 @@ export default MainPage;
 const Layout = styled.div`
   width: 100%;
   min-height: 100vh;
-  background: ${({ theme }) =>
-    theme?.colors?.background ?? "#f3f6fb"};
+  background: var(--app-background);
+  transition: background 0.25s ease;
 `;
 
 const MainArea = styled.div`
@@ -223,7 +223,10 @@ const MainArea = styled.div`
   min-height: 100vh;
   margin-left: ${({ $isCollapsed }) =>
     $isCollapsed ? "64px" : "214px"};
-  transition: margin-left 0.3s ease;
+  background: var(--app-background);
+  transition:
+    margin-left 0.3s ease,
+    background 0.25s ease;
 `;
 
 const PageContent = styled.main`

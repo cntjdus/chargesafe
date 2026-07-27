@@ -1,17 +1,22 @@
 import { useMemo, useState } from "react";
 import styled from "styled-components";
 
+import { useAppTheme } from "../contexts/AppThemeContext.jsx";
+
 import ChargeModeModal from "../components/settings/ChargeModeModal";
 import ProfileCard from "../components/settings/ProfileCard";
 import SettingsSection from "../components/settings/SettingsSection";
 import SystemInfoCard from "../components/settings/SystemInfoCard";
 import TemperatureModal from "../components/settings/TemperatureModal";
+import ThemeModeModal from "../components/settings/ThemeModeModal";
 
 import {
   chargeModes,
   defaultSettings,
   settingSectionData,
 } from "../data/settingsData";
+
+import { getThemeModeLabel } from "../styles/appThemes";
 
 const MOCK_USER = {
   name: "김철수",
@@ -24,6 +29,8 @@ const MOCK_GUARDIAN = {
 };
 
 const SettingsPage = () => {
+  const { themeMode, setThemeMode } = useAppTheme();
+
   const [settings, setSettings] = useState(
     () => defaultSettings
   );
@@ -38,6 +45,8 @@ const SettingsPage = () => {
       ) ?? chargeModes[0],
     [settings.chargeMode]
   );
+
+  const themeModeLabel = getThemeModeLabel(themeMode);
 
   const handleToggle = (settingId, nextValue) => {
     setSettings((previousSettings) => ({
@@ -64,6 +73,11 @@ const SettingsPage = () => {
     setActiveModal(null);
   };
 
+  const handleApplyThemeMode = (nextThemeMode) => {
+    setThemeMode(nextThemeMode);
+    setActiveModal(null);
+  };
+
   return (
     <PageContainer>
       <PageGrid>
@@ -74,7 +88,12 @@ const SettingsPage = () => {
             deviceId="CS-0042"
           />
 
-          <SystemInfoCard />
+          <SystemInfoCard
+            chargeMode={selectedChargeMode.name}
+            cutoffTemperature={
+              settings.cutoffTemperature
+            }
+          />
         </LeftColumn>
 
         <RightColumn>
@@ -85,6 +104,7 @@ const SettingsPage = () => {
             chargeModeLabel={
               selectedChargeMode.name
             }
+            themeModeLabel={themeModeLabel}
             onToggle={handleToggle}
             onOpenChargeMode={() =>
               setActiveModal("chargeMode")
@@ -102,6 +122,7 @@ const SettingsPage = () => {
             chargeModeLabel={
               selectedChargeMode.name
             }
+            themeModeLabel={themeModeLabel}
             onToggle={handleToggle}
           />
 
@@ -112,6 +133,7 @@ const SettingsPage = () => {
             chargeModeLabel={
               selectedChargeMode.name
             }
+            themeModeLabel={themeModeLabel}
             onToggle={handleToggle}
             onOpenTemperature={() =>
               setActiveModal("temperature")
@@ -129,7 +151,11 @@ const SettingsPage = () => {
             chargeModeLabel={
               selectedChargeMode.name
             }
+            themeModeLabel={themeModeLabel}
             onToggle={handleToggle}
+            onOpenThemeMode={() =>
+              setActiveModal("themeMode")
+            }
           />
         </RightColumn>
       </PageGrid>
@@ -153,6 +179,15 @@ const SettingsPage = () => {
           onApply={handleApplyTemperature}
         />
       )}
+
+      {activeModal === "themeMode" && (
+        <ThemeModeModal
+          key={themeMode}
+          currentThemeMode={themeMode}
+          onClose={() => setActiveModal(null)}
+          onApply={handleApplyThemeMode}
+        />
+      )}
     </PageContainer>
   );
 };
@@ -161,7 +196,10 @@ export default SettingsPage;
 
 const PageContainer = styled.div`
   width: 100%;
+  min-height: calc(100vh - 56px);
   padding: 22px;
+  background: var(--app-background);
+  transition: background 0.25s ease;
 
   @media (max-width: 768px) {
     padding: 15px;

@@ -4,6 +4,7 @@ import {
   Clock3,
   Fan,
   Heart,
+  MonitorCog,
   Phone,
   Shield,
   Thermometer,
@@ -118,7 +119,6 @@ export const defaultSettings = {
 
   voiceGuide: true,
   largeText: false,
-  highContrast: false,
 };
 
 export const settingSectionData = {
@@ -215,7 +215,7 @@ export const settingSectionData = {
   accessibility: {
     title: "접근성",
     items: [
-      {
+        {
         id: "voiceGuide",
         title: "음성 안내",
         description: "충전 상태를 음성으로 알려줍니다",
@@ -223,8 +223,8 @@ export const settingSectionData = {
         icon: Heart,
         iconColor: "#e93780",
         iconBackground: "#fff0f7",
-      },
-      {
+        },
+        {
         id: "largeText",
         title: "큰 글씨 모드",
         description: "텍스트 크기를 크게 표시합니다",
@@ -232,16 +232,16 @@ export const settingSectionData = {
         icon: UserRound,
         iconColor: "#8154ee",
         iconBackground: "#f6f0ff",
-      },
-      {
-        id: "highContrast",
+        },
+        {
+        id: "displayTheme",
         title: "고대비 화면",
-        description: "색상 대비를 높여 가독성을 향상합니다",
-        type: "toggle",
-        icon: Zap,
+        description: "색상 대비 및 화면 테마를 설정합니다",
+        type: "theme",
+        icon: MonitorCog,
         iconColor: "#46546a",
         iconBackground: "#f3f5f8",
-      },
+        },
     ],
-  },
+    },
 };

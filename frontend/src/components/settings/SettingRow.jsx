@@ -16,26 +16,42 @@ const SettingRow = ({
 
   const Icon = item.icon;
 
-  const isDetailRow =
+  const isClickable =
     item.type === "detail" ||
-    item.type === "temperature";
+    item.type === "temperature" ||
+    item.type === "theme";
 
   const handleRowClick = () => {
-    if (isDetailRow) {
+    if (isClickable) {
+      onClick?.();
+    }
+  };
+
+  const handleKeyDown = (event) => {
+    if (!isClickable) {
+      return;
+    }
+
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
       onClick?.();
     }
   };
 
   return (
     <Row
-      type="button"
-      $isClickable={isDetailRow}
+      $isClickable={isClickable}
+      role={isClickable ? "button" : undefined}
+      tabIndex={isClickable ? 0 : undefined}
       onClick={handleRowClick}
+      onKeyDown={handleKeyDown}
     >
       <LeftArea>
         <IconBox
           $color={item.iconColor ?? "#65758b"}
-          $background={item.iconBackground ?? "#f3f5f8"}
+          $background={
+            item.iconBackground ?? "#f3f5f8"
+          }
         >
           {Icon && <Icon size={18} strokeWidth={2} />}
         </IconBox>
@@ -59,9 +75,12 @@ const SettingRow = ({
           />
         )}
 
-        {isDetailRow && (
+        {isClickable && (
           <>
-            <ValueText>{valueText}</ValueText>
+            {valueText && (
+              <ValueBadge>{valueText}</ValueBadge>
+            )}
+
             <ChevronRight
               size={16}
               strokeWidth={2}
@@ -75,20 +94,18 @@ const SettingRow = ({
 
 export default SettingRow;
 
-const Row = styled.button`
+const Row = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
   width: 100%;
   min-height: 68px;
   padding: 12px 18px;
-  border: none;
-  border-top: 1px solid #edf0f4;
+  border-top: 1px solid var(--app-divider);
   color: inherit;
-  background: #ffffff;
+  background: var(--app-surface);
   cursor: ${({ $isClickable }) =>
     $isClickable ? "pointer" : "default"};
-  text-align: left;
   transition:
     background 0.2s ease,
     box-shadow 0.2s ease;
@@ -98,25 +115,25 @@ const Row = styled.button`
   }
 
   &:hover {
-    background: #f8fafc;
+    background: var(--app-surface-hover);
   }
 
   &:focus-visible {
     position: relative;
     z-index: 1;
-    outline: 2px solid #7d94fb;
+    outline: 2px solid var(--app-primary);
     outline-offset: -2px;
   }
 `;
 
-const LeftArea = styled.span`
+const LeftArea = styled.div`
   display: flex;
   align-items: center;
   gap: 14px;
   min-width: 0;
 `;
 
-const IconBox = styled.span`
+const IconBox = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
@@ -128,14 +145,13 @@ const IconBox = styled.span`
   background: ${({ $background }) => $background};
 `;
 
-const TextArea = styled.span`
-  display: block;
+const TextArea = styled.div`
   min-width: 0;
 `;
 
 const Title = styled.strong`
   display: block;
-  color: #192338;
+  color: var(--app-text-primary);
   font-size: 13px;
   font-weight: 800;
 `;
@@ -143,12 +159,12 @@ const Title = styled.strong`
 const Description = styled.span`
   display: block;
   margin-top: 4px;
-  color: #929eb2;
+  color: var(--app-text-muted);
   font-size: 10px;
   font-weight: 550;
 `;
 
-const RightArea = styled.span`
+const RightArea = styled.div`
   display: flex;
   align-items: center;
   gap: 8px;
@@ -156,8 +172,12 @@ const RightArea = styled.span`
   color: #bbc4d2;
 `;
 
-const ValueText = styled.strong`
-  color: #566278;
-  font-size: 12px;
-  font-weight: 750;
+const ValueBadge = styled.strong`
+  padding: 6px 10px;
+  border: 1px solid #dce4ff;
+  border-radius: 14px;
+  color: var(--app-primary);
+  background: #f2f5ff;
+  font-size: 11px;
+  font-weight: 800;
 `;

@@ -2,22 +2,25 @@ import styled from "styled-components";
 import {
   BatteryCharging,
   RefreshCw,
-  Shield,
+  Thermometer,
 } from "lucide-react";
 
-const SystemInfoCard = () => {
+const SystemInfoCard = ({
+  chargeMode = "배터리 보호",
+  cutoffTemperature = 50,
+}) => {
   const items = [
     {
-      id: "plan",
-      label: "구독 플랜",
-      value: "Pro",
+      id: "chargeMode",
+      label: "충전 모드",
+      value: chargeMode,
       icon: BatteryCharging,
     },
     {
-      id: "security",
-      label: "보안 등급",
-      value: "높음",
-      icon: Shield,
+      id: "temperature",
+      label: "온도 차단",
+      value: `${cutoffTemperature}°C`,
+      icon: Thermometer,
     },
     {
       id: "firmware",
@@ -58,10 +61,10 @@ export default SystemInfoCard;
 const Card = styled.section`
   margin-top: 14px;
   padding: 16px 18px;
-  border: 1px solid #e0e5ed;
+  border: 1px solid var(--app-border);
   border-radius: 17px;
-  background: #ffffff;
-  box-shadow: 0 2px 5px rgba(32, 45, 74, 0.05);
+  background: var(--app-surface);
+  box-shadow: var(--app-shadow);
 `;
 
 const InfoRow = styled.div`
@@ -75,7 +78,7 @@ const InfoLabel = styled.span`
   display: flex;
   align-items: center;
   gap: 9px;
-  color: #768399;
+  color: var(--app-text-secondary);
   font-size: 12px;
 
   svg {
@@ -84,14 +87,14 @@ const InfoLabel = styled.span`
 `;
 
 const InfoValue = styled.strong`
-  color: #182236;
+  color: var(--app-text-primary);
   font-size: 12px;
   font-weight: 800;
 `;
 
 const VersionText = styled.p`
   margin-top: 15px;
-  color: #9ca8bb;
+  color: var(--app-text-muted);
   font-size: 10px;
   text-align: center;
 `;

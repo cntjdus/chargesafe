@@ -62,7 +62,8 @@ const HeaderContainer = styled.header`
   height: 56px;
   padding: 0 22px;
   border-bottom: 1px solid ${({ theme }) => theme.colors.border};
-  background: #ffffff;
+  background: var(--app-header-background);
+  transition: background 0.25s ease;
 `;
 
 const TitleArea = styled.div`

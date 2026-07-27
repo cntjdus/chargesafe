@@ -148,8 +148,10 @@ const SidebarContainer = styled.aside`
   height: 100vh;
   padding: 0 10px 12px;
   overflow: visible;
-  background: #111729;
-  transition: width 0.3s ease;
+  background: var(--app-sidebar-background);
+  transition:
+    width 0.3s ease,
+    background 0.25s ease;
 `;
 
 const LogoArea = styled.div`

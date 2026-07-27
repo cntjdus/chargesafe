@@ -1,5 +1,11 @@
 import { useEffect, useState } from "react";
-import styled, { css, keyframes } from "styled-components";
+import styled, {
+  css,
+  keyframes,
+} from "styled-components";
+
+import AppThemeProvider from "./contexts/AppThemeContext";
+import AppGlobalStyle from "./styles/AppGlobalStyle";
 
 import LoginPage from "./pages/LoginPage";
 import MainPage from "./pages/MainPage";
@@ -14,17 +20,17 @@ function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
-    const fadeTimer = setTimeout(() => {
+    const fadeTimer = window.setTimeout(() => {
       setIsFading(true);
     }, SPLASH_DURATION - FADE_DURATION);
 
-    const splashTimer = setTimeout(() => {
+    const splashTimer = window.setTimeout(() => {
       setShowSplash(false);
     }, SPLASH_DURATION);
 
     return () => {
-      clearTimeout(fadeTimer);
-      clearTimeout(splashTimer);
+      window.clearTimeout(fadeTimer);
+      window.clearTimeout(splashTimer);
     };
   }, []);
 
@@ -33,30 +39,41 @@ function App() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("accessToken");
+    window.localStorage.removeItem("accessToken");
     setIsLoggedIn(false);
   };
 
-  if (showSplash) {
-    return (
-      <SplashWrapper $isFading={isFading}>
-        <SplashPage />
-      </SplashWrapper>
-    );
-  }
+  const renderContent = () => {
+    if (showSplash) {
+      return (
+        <SplashWrapper $isFading={isFading}>
+          <SplashPage />
+        </SplashWrapper>
+      );
+    }
 
-  if (isLoggedIn) {
+    if (!isLoggedIn) {
+      return (
+        <PageWrapper>
+          <LoginPage
+            onLoginSuccess={handleLoginSuccess}
+          />
+        </PageWrapper>
+      );
+    }
+
     return (
       <PageWrapper>
         <MainPage onLogout={handleLogout} />
       </PageWrapper>
     );
-  }
+  };
 
   return (
-    <PageWrapper>
-      <LoginPage onLoginSuccess={handleLoginSuccess} />
-    </PageWrapper>
+    <AppThemeProvider>
+      <AppGlobalStyle />
+      {renderContent()}
+    </AppThemeProvider>
   );
 }
 
@@ -89,7 +106,8 @@ const SplashWrapper = styled.div`
   ${({ $isFading }) =>
     $isFading &&
     css`
-      animation: ${fadeOut} ${FADE_DURATION}ms ease forwards;
+      animation: ${fadeOut} ${FADE_DURATION}ms ease
+        forwards;
     `}
 `;
 

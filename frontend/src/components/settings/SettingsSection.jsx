@@ -7,29 +7,44 @@ const SettingsSection = ({
   items,
   settings,
   chargeModeLabel,
+  themeModeLabel,
   onToggle,
   onOpenChargeMode,
   onOpenTemperature,
+  onOpenThemeMode,
 }) => {
   const getValueText = (item) => {
-    if (item.type === "detail") {
-      return chargeModeLabel;
-    }
+    switch (item.type) {
+      case "detail":
+        return chargeModeLabel;
 
-    if (item.type === "temperature") {
-      return `${settings.cutoffTemperature}°C`;
-    }
+      case "temperature":
+        return `${settings.cutoffTemperature}°C`;
 
-    return "";
+      case "theme":
+        return themeModeLabel;
+
+      default:
+        return "";
+    }
   };
 
-  const handleClick = (item) => {
-    if (item.type === "detail") {
-      onOpenChargeMode?.();
-    }
+  const handleRowClick = (item) => {
+    switch (item.type) {
+      case "detail":
+        onOpenChargeMode?.();
+        break;
 
-    if (item.type === "temperature") {
-      onOpenTemperature?.();
+      case "temperature":
+        onOpenTemperature?.();
+        break;
+
+      case "theme":
+        onOpenThemeMode?.();
+        break;
+
+      default:
+        break;
     }
   };
 
@@ -47,7 +62,7 @@ const SettingsSection = ({
             onToggle={(nextValue) =>
               onToggle?.(item.id, nextValue)
             }
-            onClick={() => handleClick(item)}
+            onClick={() => handleRowClick(item)}
           />
         ))}
       </Rows>
@@ -59,16 +74,16 @@ export default SettingsSection;
 
 const SectionCard = styled.section`
   overflow: hidden;
-  border: 1px solid #e1e6ee;
+  border: 1px solid var(--app-border);
   border-radius: 17px;
-  background: #ffffff;
-  box-shadow: 0 2px 5px rgba(32, 45, 74, 0.05);
+  background: var(--app-surface);
+  box-shadow: var(--app-shadow);
 `;
 
 const SectionTitle = styled.h3`
   min-height: 45px;
   padding: 16px 18px 10px;
-  color: #929db1;
+  color: var(--app-text-muted);
   font-size: 11px;
   font-weight: 750;
 `;
