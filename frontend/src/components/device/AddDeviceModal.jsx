@@ -22,6 +22,7 @@ const AddDeviceModal = ({
         <ModalHeader>
           <div>
             <Title>새 기기 추가</Title>
+
             <Description>
               주변 ChargeSafe 기기를 검색합니다
             </Description>
@@ -37,32 +38,36 @@ const AddDeviceModal = ({
         </ModalHeader>
 
         <DeviceOptions>
-          {devices.map((device) => (
-            <DeviceOption key={device.id}>
-              <DeviceInfo>
-                <DeviceIcon>
-                  <BatteryCharging
-                    size={17}
-                    strokeWidth={2}
-                  />
-                </DeviceIcon>
+          {devices.length > 0 ? (
+            devices.map((device) => (
+              <DeviceOption key={device.id}>
+                <DeviceInfo>
+                  <DeviceIcon>
+                    <BatteryCharging size={17} />
+                  </DeviceIcon>
 
-                <div>
-                  <DeviceName>{device.name}</DeviceName>
-                  <DeviceMeta>
-                    {device.id} · {device.signal}
-                  </DeviceMeta>
-                </div>
-              </DeviceInfo>
+                  <div>
+                    <DeviceName>{device.name}</DeviceName>
 
-              <ConnectButton
-                type="button"
-                onClick={() => onConnect(device)}
-              >
-                연결
-              </ConnectButton>
-            </DeviceOption>
-          ))}
+                    <DeviceMeta>
+                      {device.id} · {device.signal}
+                    </DeviceMeta>
+                  </div>
+                </DeviceInfo>
+
+                <ConnectButton
+                  type="button"
+                  onClick={() => onConnect(device)}
+                >
+                  연결
+                </ConnectButton>
+              </DeviceOption>
+            ))
+          ) : (
+            <EmptyMessage>
+              연결할 수 있는 새 기기가 없습니다.
+            </EmptyMessage>
+          )}
         </DeviceOptions>
 
         <CloseButton type="button" onClick={onClose}>
@@ -239,6 +244,13 @@ const ConnectButton = styled.button`
     background: #536df4;
     transform: translateY(-1px);
   }
+`;
+
+const EmptyMessage = styled.div`
+  padding: 30px 15px;
+  color: #929db0;
+  font-size: 12px;
+  text-align: center;
 `;
 
 const CloseButton = styled.button`

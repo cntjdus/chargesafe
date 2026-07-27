@@ -15,21 +15,19 @@ const DeviceStatCard = ({
 
 export default DeviceStatCard;
 
-const variantStyles = {
+const variants = {
   default: {
     background: "#ffffff",
     border: "#e2e7ef",
     value: "#172033",
     label: "#748198",
   },
-
   charging: {
     background: "#f1f5ff",
     border: "#dce5ff",
     value: "#4d63f5",
     label: "#6177e7",
   },
-
   offline: {
     background: "#fff5f3",
     border: "#f4dbd8",
@@ -43,12 +41,11 @@ const Card = styled.article`
   padding: 18px 17px;
   border: 1px solid
     ${({ $variant }) =>
-      variantStyles[$variant]?.border ??
-      variantStyles.default.border};
+      variants[$variant]?.border ?? variants.default.border};
   border-radius: 16px;
   background: ${({ $variant }) =>
-    variantStyles[$variant]?.background ??
-    variantStyles.default.background};
+    variants[$variant]?.background ??
+    variants.default.background};
   box-shadow: 0 2px 5px rgba(29, 42, 72, 0.04);
   transition:
     transform 0.2s ease,
@@ -65,8 +62,7 @@ const Card = styled.article`
 const Value = styled.strong`
   display: block;
   color: ${({ $variant }) =>
-    variantStyles[$variant]?.value ??
-    variantStyles.default.value};
+    variants[$variant]?.value ?? variants.default.value};
   font-size: 25px;
   font-weight: 850;
   line-height: 1;
@@ -75,8 +71,7 @@ const Value = styled.strong`
 const Label = styled.p`
   margin-top: 7px;
   color: ${({ $variant }) =>
-    variantStyles[$variant]?.label ??
-    variantStyles.default.label};
+    variants[$variant]?.label ?? variants.default.label};
   font-size: 12px;
   font-weight: 650;
 `;

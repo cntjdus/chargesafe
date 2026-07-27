@@ -3,7 +3,8 @@ import {
   BatteryCharging,
   ChevronDown,
   ChevronUp,
-  Settings,
+  Pencil,
+  Star,
   Trash2,
 } from "lucide-react";
 
@@ -13,18 +14,15 @@ const DeviceRow = ({
   onToggle,
   onDelete,
   onMonitoring,
+  onOpenSettings,
+  onToggleFavorite,
 }) => {
   const statusInfo = getStatusInfo(device.status);
   const batteryColor = getBatteryColor(device);
 
-  const handleDelete = (event) => {
+  const stopAndRun = (event, callback) => {
     event.stopPropagation();
-    onDelete(device.id);
-  };
-
-  const handleMonitoring = (event) => {
-    event.stopPropagation();
-    onMonitoring(device);
+    callback();
   };
 
   return (
@@ -35,13 +33,27 @@ const DeviceRow = ({
         $isExpanded={isExpanded}
       >
         <DeviceInfo>
-          <DeviceIcon $isOffline={device.status === "offline"}>
-            <BatteryCharging size={18} strokeWidth={2} />
-          </DeviceIcon>
+          <IconWrapper>
+            <DeviceIcon
+              $isOffline={device.status === "offline"}
+            >
+              <BatteryCharging size={18} />
+            </DeviceIcon>
+
+            {device.isFavorite && (
+              <FavoriteIconBadge>
+                <Star size={12} fill="currentColor" />
+              </FavoriteIconBadge>
+            )}
+          </IconWrapper>
 
           <DeviceText>
             <NameLine>
               <DeviceName>{device.name}</DeviceName>
+
+              {device.isFavorite && (
+                <FavoriteBadge>즐겨찾기</FavoriteBadge>
+              )}
 
               {device.needsUpdate && (
                 <UpdateBadge>업데이트 필요</UpdateBadge>
@@ -63,6 +75,7 @@ const DeviceRow = ({
           <BatteryArea>
             <BatteryTop>
               <BatteryLabel>배터리</BatteryLabel>
+
               <BatteryValue $color={batteryColor}>
                 {device.battery}%
               </BatteryValue>
@@ -96,14 +109,40 @@ const DeviceRow = ({
 
       {isExpanded && (
         <ExpandedArea>
-          <SettingsButton type="button">
-            <Settings size={17} />
+          <SettingsButton
+            type="button"
+            onClick={(event) =>
+              stopAndRun(event, onOpenSettings)
+            }
+          >
+            <Pencil size={16} />
             설정
           </SettingsButton>
 
+          <FavoriteActionButton
+            type="button"
+            $isFavorite={device.isFavorite}
+            onClick={(event) =>
+              stopAndRun(event, onToggleFavorite)
+            }
+          >
+            <Star
+              size={17}
+              fill={
+                device.isFavorite ? "currentColor" : "none"
+              }
+            />
+
+            {device.isFavorite
+              ? "즐겨찾기 해제"
+              : "즐겨찾기"}
+          </FavoriteActionButton>
+
           <MonitoringButton
             type="button"
-            onClick={handleMonitoring}
+            onClick={(event) =>
+              stopAndRun(event, () => onMonitoring(device))
+            }
           >
             모니터링
           </MonitoringButton>
@@ -111,7 +150,9 @@ const DeviceRow = ({
           <DeleteButton
             type="button"
             aria-label={`${device.name} 삭제`}
-            onClick={handleDelete}
+            onClick={(event) =>
+              stopAndRun(event, () => onDelete(device.id))
+            }
           >
             <Trash2 size={17} />
           </DeleteButton>
@@ -149,7 +190,6 @@ const getStatusInfo = (status) => {
         border: "#f4dcda",
       };
 
-    case "standby":
     default:
       return {
         label: "대기 중",
@@ -189,8 +229,8 @@ const DeviceMainRow = styled.button`
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  min-height: 68px;
-  padding: 10px 20px;
+  min-height: 72px;
+  padding: 11px 20px;
   border: 0;
   background: ${({ $isExpanded }) =>
     $isExpanded ? "#f8fafc" : "#ffffff"};
@@ -201,7 +241,7 @@ const DeviceMainRow = styled.button`
     box-shadow 0.2s ease;
 
   &:hover {
-    background: #f8fafc;
+    background: #f7f9fc;
   }
 
   &:focus-visible {
@@ -223,11 +263,15 @@ const DeviceInfo = styled.div`
   min-width: 0;
 `;
 
+const IconWrapper = styled.div`
+  position: relative;
+  flex-shrink: 0;
+`;
+
 const DeviceIcon = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
   width: 42px;
   height: 42px;
   border-radius: 50%;
@@ -237,6 +281,21 @@ const DeviceIcon = styled.div`
     $isOffline ? "#f3f5f8" : "#f0f4ff"};
 `;
 
+const FavoriteIconBadge = styled.span`
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 21px;
+  height: 21px;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  color: #ffffff;
+  background: #efb516;
+`;
+
 const DeviceText = styled.div`
   min-width: 0;
 `;
@@ -244,12 +303,22 @@ const DeviceText = styled.div`
 const NameLine = styled.div`
   display: flex;
   align-items: center;
-  gap: 9px;
+  flex-wrap: wrap;
+  gap: 8px;
 `;
 
 const DeviceName = styled.strong`
   color: #1d2639;
   font-size: 13px;
+  font-weight: 800;
+`;
+
+const FavoriteBadge = styled.span`
+  padding: 4px 8px;
+  border-radius: 10px;
+  color: #b66d00;
+  background: #fff4cc;
+  font-size: 9px;
   font-weight: 800;
 `;
 
@@ -351,14 +420,17 @@ const ChevronArea = styled.span`
 
 const ExpandedArea = styled.div`
   display: grid;
-  grid-template-columns: 1fr 1fr 43px;
+  grid-template-columns: 1fr 1fr 1fr 43px;
   gap: 10px;
   padding: 13px 20px;
   border-top: 1px solid #e8ecf2;
-  border-bottom: 1px solid #d8dde6;
   background: #f8fafc;
 
-  @media (max-width: 600px) {
+  @media (max-width: 760px) {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  @media (max-width: 500px) {
     grid-template-columns: 1fr;
   }
 `;
@@ -392,6 +464,27 @@ const SettingsButton = styled(BaseActionButton)`
   &:hover {
     border-color: #bfcaff;
     background: #f2f5ff;
+  }
+`;
+
+const FavoriteActionButton = styled(BaseActionButton)`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid
+    ${({ $isFavorite }) =>
+      $isFavorite ? "#f0d067" : "#dfe5ed"};
+  color: ${({ $isFavorite }) =>
+    $isFavorite ? "#cb8200" : "#4f5c72"};
+  background: ${({ $isFavorite }) =>
+    $isFavorite ? "#fffbea" : "#ffffff"};
+
+  &:hover {
+    border-color: ${({ $isFavorite }) =>
+      $isFavorite ? "#e6b91d" : "#cbd6ff"};
+    background: ${({ $isFavorite }) =>
+      $isFavorite ? "#fff4cc" : "#f3f6ff"};
   }
 `;
 

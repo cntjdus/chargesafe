@@ -6,7 +6,9 @@ export const initialDevices = [
     lastConnected: "지금",
     battery: 63,
     status: "charging",
+    firmware: "최신",
     needsUpdate: false,
+    isFavorite: true,
   },
   {
     id: "CS-0017",
@@ -15,7 +17,9 @@ export const initialDevices = [
     lastConnected: "2시간 전",
     battery: 91,
     status: "standby",
+    firmware: "최신",
     needsUpdate: false,
+    isFavorite: false,
   },
   {
     id: "CS-0085",
@@ -24,7 +28,9 @@ export const initialDevices = [
     lastConnected: "5분 전",
     battery: 38,
     status: "connected",
+    firmware: "업데이트 필요",
     needsUpdate: true,
+    isFavorite: false,
   },
   {
     id: "CS-0103",
@@ -33,7 +39,9 @@ export const initialDevices = [
     lastConnected: "3일 전",
     battery: 12,
     status: "offline",
+    firmware: "최신",
     needsUpdate: false,
+    isFavorite: false,
   },
   {
     id: "CS-0056",
@@ -42,7 +50,9 @@ export const initialDevices = [
     lastConnected: "어제",
     battery: 77,
     status: "standby",
+    firmware: "최신",
     needsUpdate: false,
+    isFavorite: false,
   },
 ];
 
@@ -50,11 +60,17 @@ export const discoverableDevices = [
   {
     id: "CS-0201",
     name: "새 전동휠체어 A",
+    location: "미지정",
     signal: "신호 강함",
+    battery: 100,
+    firmware: "최신",
   },
   {
     id: "CS-0202",
     name: "새 전동휠체어 B",
+    location: "미지정",
     signal: "신호 보통",
+    battery: 100,
+    firmware: "최신",
   },
 ];

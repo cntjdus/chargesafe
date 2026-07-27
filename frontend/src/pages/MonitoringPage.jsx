@@ -1,5 +1,8 @@
 import styled from "styled-components";
-import { Activity, BatteryCharging } from "lucide-react";
+import {
+  Activity,
+  BatteryCharging,
+} from "lucide-react";
 
 const MonitoringPage = ({ selectedDevice }) => {
   return (
@@ -13,7 +16,9 @@ const MonitoringPage = ({ selectedDevice }) => {
 
         {selectedDevice ? (
           <>
-            <DeviceName>{selectedDevice.name}</DeviceName>
+            <DeviceName>
+              {selectedDevice.name}
+            </DeviceName>
 
             <DeviceInfo>
               <BatteryCharging size={17} />

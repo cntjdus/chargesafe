@@ -1,5 +1,4 @@
 import styled from "styled-components";
-
 import DeviceStatCard from "./DeviceStatCard";
 
 const DeviceStatsSection = ({ devices }) => {

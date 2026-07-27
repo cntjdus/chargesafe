@@ -4,6 +4,7 @@ import { Plus } from "lucide-react";
 
 import AddDeviceModal from "../components/device/AddDeviceModal";
 import DeviceList from "../components/device/DeviceList";
+import DeviceSettingsModal from "../components/device/DeviceSettingsModal";
 import DeviceStatsSection from "../components/device/DeviceStatsSection";
 
 import {
@@ -15,8 +16,12 @@ const DeviceManagementPage = ({
   onNavigateMonitoring,
 }) => {
   const [devices, setDevices] = useState(initialDevices);
+
   const [isAddModalOpen, setIsAddModalOpen] =
     useState(false);
+
+  const [settingsDevice, setSettingsDevice] =
+    useState(null);
 
   const availableDevices = useMemo(() => {
     const registeredIds = new Set(
@@ -29,21 +34,36 @@ const DeviceManagementPage = ({
   }, [devices]);
 
   const handleConnectDevice = (device) => {
+    const isAlreadyRegistered = devices.some(
+      (registeredDevice) =>
+        registeredDevice.id === device.id
+    );
+
+    if (isAlreadyRegistered) {
+      return;
+    }
+
     const newDevice = {
       ...device,
-      location: "미지정",
       lastConnected: "지금",
-      battery: 100,
       status: "connected",
       needsUpdate: false,
+      isFavorite: false,
     };
 
-    setDevices((previous) => [...previous, newDevice]);
+    setDevices((previous) => [
+      ...previous,
+      newDevice,
+    ]);
   };
 
   const handleDeleteDevice = (deviceId) => {
+    const targetDevice = devices.find(
+      (device) => device.id === deviceId
+    );
+
     const shouldDelete = window.confirm(
-      "이 기기를 목록에서 삭제하시겠습니까?"
+      `${targetDevice?.name ?? "이 기기"}를 삭제하시겠습니까?`
     );
 
     if (!shouldDelete) {
@@ -53,10 +73,35 @@ const DeviceManagementPage = ({
     setDevices((previous) =>
       previous.filter((device) => device.id !== deviceId)
     );
+
+    if (settingsDevice?.id === deviceId) {
+      setSettingsDevice(null);
+    }
   };
 
-  const handleMonitoring = (device) => {
-    onNavigateMonitoring?.(device);
+  const handleToggleFavorite = (deviceId) => {
+    setDevices((previous) =>
+      previous.map((device) =>
+        device.id === deviceId
+          ? {
+              ...device,
+              isFavorite: !device.isFavorite,
+            }
+          : device
+      )
+    );
+  };
+
+  const handleSaveSettings = (updatedDevice) => {
+    setDevices((previous) =>
+      previous.map((device) =>
+        device.id === updatedDevice.id
+          ? updatedDevice
+          : device
+      )
+    );
+
+    setSettingsDevice(null);
   };
 
   return (
@@ -78,7 +123,9 @@ const DeviceManagementPage = ({
       <DeviceList
         devices={devices}
         onDelete={handleDeleteDevice}
-        onMonitoring={handleMonitoring}
+        onMonitoring={onNavigateMonitoring}
+        onOpenSettings={setSettingsDevice}
+        onToggleFavorite={handleToggleFavorite}
       />
 
       {isAddModalOpen && (
@@ -86,6 +133,14 @@ const DeviceManagementPage = ({
           devices={availableDevices}
           onClose={() => setIsAddModalOpen(false)}
           onConnect={handleConnectDevice}
+        />
+      )}
+
+      {settingsDevice && (
+        <DeviceSettingsModal
+          device={settingsDevice}
+          onClose={() => setSettingsDevice(null)}
+          onSave={handleSaveSettings}
         />
       )}
     </PageContainer>

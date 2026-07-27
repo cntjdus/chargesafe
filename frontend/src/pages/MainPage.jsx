@@ -33,20 +33,14 @@ const MOCK_COMMON_DATA = {
 };
 
 const MainPage = ({ onLogout }) => {
-  const [isCollapsed, setIsCollapsed] =
-    useState(false);
-
-  const [selectedMenu, setSelectedMenu] =
-    useState("dashboard");
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [selectedMenu, setSelectedMenu] = useState("dashboard");
 
   const [selectedMonitoringDevice, setSelectedMonitoringDevice] =
     useState(null);
 
-  const [emergencyView, setEmergencyView] =
-    useState(null);
-
-  const [callPreviousView, setCallPreviousView] =
-    useState("main");
+  const [emergencyView, setEmergencyView] = useState(null);
+  const [callPreviousView, setCallPreviousView] = useState("main");
 
   const handleToggleSidebar = () => {
     setIsCollapsed((previous) => !previous);
@@ -67,6 +61,13 @@ const MainPage = ({ onLogout }) => {
   const handleNavigateMonitoring = (device) => {
     setSelectedMonitoringDevice(device);
     setSelectedMenu("monitoring");
+  };
+
+  const handlePhoneCall = () => {
+    const phoneNumber =
+      MOCK_COMMON_DATA.guardian.phoneNumber.replaceAll("-", "");
+
+    window.location.href = `tel:${phoneNumber}`;
   };
 
   const getPageTitle = () => {
@@ -94,6 +95,13 @@ const MainPage = ({ onLogout }) => {
 
   const renderPageContent = () => {
     switch (selectedMenu) {
+      case "dashboard":
+        return (
+          <DashboardPage
+            onEmergencyClick={handleEmergencyOpen}
+          />
+        );
+
       case "monitoring":
         return (
           <MonitoringPage
@@ -107,9 +115,7 @@ const MainPage = ({ onLogout }) => {
       case "devices":
         return (
           <DeviceManagementPage
-            onNavigateMonitoring={
-              handleNavigateMonitoring
-            }
+            onNavigateMonitoring={handleNavigateMonitoring}
           />
         );
 
@@ -127,7 +133,6 @@ const MainPage = ({ onLogout }) => {
           </EmptyPage>
         );
 
-      case "dashboard":
       default:
         return (
           <DashboardPage
@@ -135,16 +140,6 @@ const MainPage = ({ onLogout }) => {
           />
         );
     }
-  };
-
-  const handleCall = () => {
-    const phoneNumber =
-      MOCK_COMMON_DATA.guardian.phoneNumber.replaceAll(
-        "-",
-        ""
-      );
-
-    window.location.href = `tel:${phoneNumber}`;
   };
 
   return (
@@ -156,21 +151,15 @@ const MainPage = ({ onLogout }) => {
           selectedMenu={selectedMenu}
           onSelectMenu={handleSelectMenu}
           deviceId={MOCK_COMMON_DATA.deviceId}
-          chargePercent={
-            MOCK_COMMON_DATA.chargePercent
-          }
-          chargingStatus={
-            MOCK_COMMON_DATA.chargingStatus
-          }
+          chargePercent={MOCK_COMMON_DATA.chargePercent}
+          chargingStatus={MOCK_COMMON_DATA.chargingStatus}
           onEmergencyClick={handleEmergencyOpen}
         />
 
         <MainArea $isCollapsed={isCollapsed}>
           <DashboardHeader
             title={getPageTitle()}
-            showLiveText={
-              selectedMenu === "dashboard"
-            }
+            showLiveText={selectedMenu === "dashboard"}
             user={MOCK_COMMON_DATA.user}
             onLogout={onLogout}
           />
@@ -200,9 +189,9 @@ const MainPage = ({ onLogout }) => {
 
         {emergencyView === "guide" && (
           <EmergencyGuideModal
-            onBack={() =>
-              setEmergencyView("main")
-            }
+            onBack={() => {
+              setEmergencyView("main");
+            }}
             onEmergencyCall={() => {
               setCallPreviousView("guide");
               setEmergencyView("call");
@@ -212,19 +201,13 @@ const MainPage = ({ onLogout }) => {
 
         {emergencyView === "call" && (
           <CallConfirmModal
-            guardianName={
-              MOCK_COMMON_DATA.guardian.name
-            }
-            relation={
-              MOCK_COMMON_DATA.guardian.relation
-            }
-            phoneNumber={
-              MOCK_COMMON_DATA.guardian.phoneNumber
-            }
-            onCancel={() =>
-              setEmergencyView(callPreviousView)
-            }
-            onCall={handleCall}
+            guardianName={MOCK_COMMON_DATA.guardian.name}
+            relation={MOCK_COMMON_DATA.guardian.relation}
+            phoneNumber={MOCK_COMMON_DATA.guardian.phoneNumber}
+            onCancel={() => {
+              setEmergencyView(callPreviousView);
+            }}
+            onCall={handlePhoneCall}
           />
         )}
       </Layout>
@@ -238,10 +221,11 @@ const Layout = styled.div`
   width: 100%;
   min-height: 100vh;
   background: ${({ theme }) =>
-    theme.colors.background};
+    theme?.colors?.background ?? "#f3f6fb"};
 `;
 
 const MainArea = styled.div`
+  width: auto;
   min-height: 100vh;
   margin-left: ${({ $isCollapsed }) =>
     $isCollapsed ? "64px" : "214px"};
@@ -253,11 +237,12 @@ const PageContent = styled.main`
   min-height: calc(100vh - 56px);
 `;
 
-const EmptyPage = styled.div`
+const EmptyPage = styled.section`
   margin: 22px;
-  padding: 60px;
+  padding: 60px 24px;
   border: 1px solid
-    ${({ theme }) => theme.colors.border};
+    ${({ theme }) =>
+      theme?.colors?.border ?? "#e3e8f0"};
   border-radius: 18px;
   color: #7d899e;
   background: #ffffff;
