@@ -12,6 +12,8 @@ import { dashboardTheme } from "../styles/dashboardTheme";
 
 import ChargingHistoryPage from "./ChargingHistoryPage";
 import DashboardPage from "./DashboardPage";
+import DeviceManagementPage from "./DeviceManagementPage";
+import MonitoringPage from "./MonitoringPage";
 
 const MOCK_COMMON_DATA = {
   deviceId: "CS-0042",
@@ -31,27 +33,49 @@ const MOCK_COMMON_DATA = {
 };
 
 const MainPage = ({ onLogout }) => {
-  const [isCollapsed, setIsCollapsed] = useState(false);
-  const [selectedMenu, setSelectedMenu] = useState("dashboard");
+  const [isCollapsed, setIsCollapsed] =
+    useState(false);
 
-  const [emergencyView, setEmergencyView] = useState(null);
-  const [callPreviousView, setCallPreviousView] = useState("main");
+  const [selectedMenu, setSelectedMenu] =
+    useState("dashboard");
+
+  const [selectedMonitoringDevice, setSelectedMonitoringDevice] =
+    useState(null);
+
+  const [emergencyView, setEmergencyView] =
+    useState(null);
+
+  const [callPreviousView, setCallPreviousView] =
+    useState("main");
 
   const handleToggleSidebar = () => {
     setIsCollapsed((previous) => !previous);
+  };
+
+  const handleSelectMenu = (menuId) => {
+    setSelectedMenu(menuId);
+
+    if (menuId !== "monitoring") {
+      setSelectedMonitoringDevice(null);
+    }
   };
 
   const handleEmergencyOpen = () => {
     setEmergencyView("main");
   };
 
+  const handleNavigateMonitoring = (device) => {
+    setSelectedMonitoringDevice(device);
+    setSelectedMenu("monitoring");
+  };
+
   const getPageTitle = () => {
     switch (selectedMenu) {
-      case "history":
-        return "충전 이력";
-
       case "monitoring":
         return "모니터링";
+
+      case "history":
+        return "충전 이력";
 
       case "notifications":
         return "알림 센터";
@@ -70,32 +94,55 @@ const MainPage = ({ onLogout }) => {
 
   const renderPageContent = () => {
     switch (selectedMenu) {
+      case "monitoring":
+        return (
+          <MonitoringPage
+            selectedDevice={selectedMonitoringDevice}
+          />
+        );
+
       case "history":
         return <ChargingHistoryPage />;
 
-      case "dashboard":
-        return <DashboardPage onEmergencyClick={handleEmergencyOpen} />;
-
-      case "monitoring":
-        return <EmptyPage>모니터링 페이지를 준비 중입니다.</EmptyPage>;
+      case "devices":
+        return (
+          <DeviceManagementPage
+            onNavigateMonitoring={
+              handleNavigateMonitoring
+            }
+          />
+        );
 
       case "notifications":
-        return <EmptyPage>알림 센터 페이지를 준비 중입니다.</EmptyPage>;
-
-      case "devices":
-        return <EmptyPage>기기 관리 페이지를 준비 중입니다.</EmptyPage>;
+        return (
+          <EmptyPage>
+            알림 센터 페이지를 준비 중입니다.
+          </EmptyPage>
+        );
 
       case "settings":
-        return <EmptyPage>설정 페이지를 준비 중입니다.</EmptyPage>;
+        return (
+          <EmptyPage>
+            설정 페이지를 준비 중입니다.
+          </EmptyPage>
+        );
 
+      case "dashboard":
       default:
-        return <DashboardPage onEmergencyClick={handleEmergencyOpen} />;
+        return (
+          <DashboardPage
+            onEmergencyClick={handleEmergencyOpen}
+          />
+        );
     }
   };
 
   const handleCall = () => {
     const phoneNumber =
-      MOCK_COMMON_DATA.guardian.phoneNumber.replaceAll("-", "");
+      MOCK_COMMON_DATA.guardian.phoneNumber.replaceAll(
+        "-",
+        ""
+      );
 
     window.location.href = `tel:${phoneNumber}`;
   };
@@ -107,22 +154,30 @@ const MainPage = ({ onLogout }) => {
           isCollapsed={isCollapsed}
           onToggle={handleToggleSidebar}
           selectedMenu={selectedMenu}
-          onSelectMenu={setSelectedMenu}
+          onSelectMenu={handleSelectMenu}
           deviceId={MOCK_COMMON_DATA.deviceId}
-          chargePercent={MOCK_COMMON_DATA.chargePercent}
-          chargingStatus={MOCK_COMMON_DATA.chargingStatus}
+          chargePercent={
+            MOCK_COMMON_DATA.chargePercent
+          }
+          chargingStatus={
+            MOCK_COMMON_DATA.chargingStatus
+          }
           onEmergencyClick={handleEmergencyOpen}
         />
 
         <MainArea $isCollapsed={isCollapsed}>
           <DashboardHeader
             title={getPageTitle()}
-            showLiveText={selectedMenu === "dashboard"}
+            showLiveText={
+              selectedMenu === "dashboard"
+            }
             user={MOCK_COMMON_DATA.user}
             onLogout={onLogout}
           />
 
-          <PageContent>{renderPageContent()}</PageContent>
+          <PageContent>
+            {renderPageContent()}
+          </PageContent>
         </MainArea>
 
         {emergencyView === "main" && (
@@ -145,7 +200,9 @@ const MainPage = ({ onLogout }) => {
 
         {emergencyView === "guide" && (
           <EmergencyGuideModal
-            onBack={() => setEmergencyView("main")}
+            onBack={() =>
+              setEmergencyView("main")
+            }
             onEmergencyCall={() => {
               setCallPreviousView("guide");
               setEmergencyView("call");
@@ -155,10 +212,18 @@ const MainPage = ({ onLogout }) => {
 
         {emergencyView === "call" && (
           <CallConfirmModal
-            guardianName={MOCK_COMMON_DATA.guardian.name}
-            relation={MOCK_COMMON_DATA.guardian.relation}
-            phoneNumber={MOCK_COMMON_DATA.guardian.phoneNumber}
-            onCancel={() => setEmergencyView(callPreviousView)}
+            guardianName={
+              MOCK_COMMON_DATA.guardian.name
+            }
+            relation={
+              MOCK_COMMON_DATA.guardian.relation
+            }
+            phoneNumber={
+              MOCK_COMMON_DATA.guardian.phoneNumber
+            }
+            onCancel={() =>
+              setEmergencyView(callPreviousView)
+            }
             onCall={handleCall}
           />
         )}
@@ -172,11 +237,11 @@ export default MainPage;
 const Layout = styled.div`
   width: 100%;
   min-height: 100vh;
-  background: ${({ theme }) => theme.colors.background};
+  background: ${({ theme }) =>
+    theme.colors.background};
 `;
 
 const MainArea = styled.div`
-  width: auto;
   min-height: 100vh;
   margin-left: ${({ $isCollapsed }) =>
     $isCollapsed ? "64px" : "214px"};
@@ -191,7 +256,8 @@ const PageContent = styled.main`
 const EmptyPage = styled.div`
   margin: 22px;
   padding: 60px;
-  border: 1px solid ${({ theme }) => theme.colors.border};
+  border: 1px solid
+    ${({ theme }) => theme.colors.border};
   border-radius: 18px;
   color: #7d899e;
   background: #ffffff;
