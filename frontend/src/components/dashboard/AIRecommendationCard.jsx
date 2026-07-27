@@ -6,7 +6,12 @@ import {
   TrendingUp,
 } from "lucide-react";
 
-const AIRecommendationCard = () => {
+const AIRecommendationCard = ({
+  confidence = 0,
+  recommendedPercent = 0,
+  message = "AI 추천 정보를 불러오는 중입니다.",
+  batteryHealth = 0,
+}) => {
   return (
     <Card>
       <TopLine />
@@ -25,13 +30,13 @@ const AIRecommendationCard = () => {
 
         <ConfidenceBadge>
           <TrendingUp size={12} />
-          신뢰도 94%
+          신뢰도 {confidence}%
         </ConfidenceBadge>
       </Header>
 
       <RecommendationBox>
-        내일 이동에는 <StrongText>85% 충전</StrongText>으로 충분합니다.
-        배터리 보호를 위해 85%에서 자동 종료합니다.
+        <StrongText>{recommendedPercent}% 충전</StrongText>
+        <Message>{message}</Message>
       </RecommendationBox>
 
       <HealthRow>
@@ -41,10 +46,10 @@ const AIRecommendationCard = () => {
         </HealthLabel>
 
         <HealthProgress>
-          <HealthProgressValue />
+          <HealthProgressValue $health={batteryHealth} />
         </HealthProgress>
 
-        <HealthValue>양호 · 87%</HealthValue>
+        <HealthValue>양호 · {batteryHealth}%</HealthValue>
 
         <NormalBadge>
           <CheckCircle2 size={12} />
@@ -124,6 +129,9 @@ const ConfidenceBadge = styled.span`
 `;
 
 const RecommendationBox = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 7px;
   margin-top: 13px;
   padding: 14px 15px;
   border-radius: 15px;
@@ -133,10 +141,15 @@ const RecommendationBox = styled.div`
 `;
 
 const StrongText = styled.strong`
+  flex-shrink: 0;
   padding: 3px 8px;
   border-radius: 10px;
   color: #385acb;
   background: #dce6ff;
+`;
+
+const Message = styled.span`
+  line-height: 1.5;
 `;
 
 const HealthRow = styled.div`
@@ -167,10 +180,11 @@ const HealthProgress = styled.div`
 `;
 
 const HealthProgressValue = styled.div`
-  width: 87%;
+  width: ${({ $health }) => `${Math.min(Math.max($health, 0), 100)}%`};
   height: 100%;
   border-radius: inherit;
   background: #5ac389;
+  transition: width 0.5s ease;
 `;
 
 const HealthValue = styled.span`

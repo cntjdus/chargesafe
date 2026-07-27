@@ -1,7 +1,7 @@
 import styled from "styled-components";
 import { Bell, LogOut, UserRound } from "lucide-react";
 
-const DashboardHeader = ({ onLogout }) => {
+const DashboardHeader = ({ user, onLogout }) => {
   return (
     <HeaderContainer>
       <TitleArea>
@@ -22,12 +22,16 @@ const DashboardHeader = ({ onLogout }) => {
           </ProfileIcon>
 
           <ProfileText>
-            <Name>김철수</Name>
-            <Role>관리자</Role>
+            <Name>{user?.name ?? "사용자"}</Name>
+            <Role>{user?.role ?? "관리자"}</Role>
           </ProfileText>
         </ProfileButton>
 
-        <LogoutButton type="button" aria-label="로그아웃" onClick={onLogout}>
+        <LogoutButton
+          type="button"
+          aria-label="로그아웃"
+          onClick={onLogout}
+        >
           <LogOut size={19} />
         </LogoutButton>
       </HeaderActions>
@@ -66,7 +70,6 @@ const Separator = styled.span`
 const LiveText = styled.span`
   color: #91a0b8;
   font-size: 12px;
-  font-weight: 600;
 `;
 
 const HeaderActions = styled.div`
@@ -75,7 +78,7 @@ const HeaderActions = styled.div`
   gap: 8px;
 `;
 
-const BaseHeaderButton = styled.button`
+const BaseButton = styled.button`
   border: 1px solid transparent;
   background: #f8faff;
   cursor: pointer;
@@ -90,7 +93,7 @@ const BaseHeaderButton = styled.button`
   }
 `;
 
-const IconButton = styled(BaseHeaderButton)`
+const IconButton = styled(BaseButton)`
   position: relative;
   display: flex;
   align-items: center;
@@ -118,7 +121,7 @@ const RedDot = styled.span`
   background: ${({ theme }) => theme.colors.red};
 `;
 
-const ProfileButton = styled(BaseHeaderButton)`
+const ProfileButton = styled(BaseButton)`
   display: flex;
   align-items: center;
   gap: 10px;
@@ -157,12 +160,11 @@ const Name = styled.span`
 `;
 
 const Role = styled.span`
-  margin-top: 1px;
   color: ${({ theme }) => theme.colors.subText};
   font-size: 10px;
 `;
 
-const LogoutButton = styled(BaseHeaderButton)`
+const LogoutButton = styled(BaseButton)`
   display: flex;
   align-items: center;
   justify-content: center;

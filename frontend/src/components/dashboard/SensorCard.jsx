@@ -2,15 +2,21 @@ import styled from "styled-components";
 
 const SensorCard = ({
   icon: Icon,
-  value,
-  unit,
+  value = "-",
+  unit = "",
   label,
+  status = "확인 중",
   valueColor,
   iconColor,
   iconBackground,
-  progress,
+  progress = 0,
   progressColor,
 }) => {
+  const safeProgress = Math.min(
+    Math.max(Number(progress) || 0, 0),
+    100
+  );
+
   return (
     <Card>
       <Header>
@@ -21,7 +27,7 @@ const SensorCard = ({
           <Icon size={18} />
         </IconBox>
 
-        <StatusBadge>정상</StatusBadge>
+        <StatusBadge $status={status}>{status}</StatusBadge>
       </Header>
 
       <ValueArea>
@@ -33,7 +39,7 @@ const SensorCard = ({
 
       <ProgressTrack>
         <Progress
-          $progress={progress}
+          $progress={safeProgress}
           $progressColor={progressColor}
         />
       </ProgressTrack>
@@ -80,8 +86,10 @@ const IconBox = styled.div`
 const StatusBadge = styled.span`
   padding: 4px 8px;
   border-radius: 10px;
-  color: #499c54;
-  background: #f1faef;
+  color: ${({ $status }) =>
+    $status === "정상" ? "#499c54" : "#d5484d"};
+  background: ${({ $status }) =>
+    $status === "정상" ? "#f1faef" : "#fff0f0"};
   font-size: 10px;
   font-weight: 700;
 `;
@@ -96,7 +104,6 @@ const Value = styled.strong`
   color: ${({ $valueColor }) => $valueColor};
   font-size: 29px;
   font-weight: 850;
-  line-height: 1;
 `;
 
 const Unit = styled.span`
@@ -126,4 +133,5 @@ const Progress = styled.div`
   height: 100%;
   border-radius: inherit;
   background: ${({ $progressColor }) => $progressColor};
+  transition: width 0.5s ease;
 `;

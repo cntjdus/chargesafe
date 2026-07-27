@@ -1,7 +1,16 @@
 import styled from "styled-components";
 import { Clock3, TrendingUp } from "lucide-react";
 
-const ChargeStatusCard = () => {
+const ChargeStatusCard = ({
+  chargePercent = 0,
+  targetPercent = 0,
+  completionTime = "--:--",
+  completionPeriod = "",
+  remainingTime = "-",
+  chargingStatus = "대기 중",
+}) => {
+  const safePercent = Math.min(Math.max(Number(chargePercent) || 0, 0), 100);
+
   return (
     <Card>
       <CardHeader>
@@ -12,20 +21,17 @@ const ChargeStatusCard = () => {
 
         <ChargingBadge>
           <BadgeDot />
-          충전 중
+          {chargingStatus}
         </ChargingBadge>
       </CardHeader>
 
       <ChartArea>
-        <ChargeCircle>
-          <CircleTrack />
-          <CircleProgress />
-
-          <CircleContent>
-            <Percent>63%</Percent>
+        <ChargeCircle $percent={safePercent}>
+          <CircleInner>
+            <Percent>{safePercent}%</Percent>
             <CurrentLabel>현재 충전량</CurrentLabel>
-            <TargetBadge>● 목표 85%</TargetBadge>
-          </CircleContent>
+            <TargetBadge>● 목표 {targetPercent}%</TargetBadge>
+          </CircleInner>
         </ChargeCircle>
       </ChartArea>
 
@@ -35,8 +41,9 @@ const ChargeStatusCard = () => {
             <Clock3 size={13} />
             완료 예정
           </TimeLabel>
-          <TimeValue>11:28</TimeValue>
-          <TimeUnit>오전</TimeUnit>
+
+          <TimeValue>{completionTime}</TimeValue>
+          <TimeUnit>{completionPeriod}</TimeUnit>
         </TimeCard>
 
         <TimeCard>
@@ -44,8 +51,9 @@ const ChargeStatusCard = () => {
             <TrendingUp size={13} />
             남은 시간
           </TimeLabel>
-          <TimeValue>1:47</TimeValue>
-          <TimeUnit>시간·분</TimeUnit>
+
+          <TimeValue>{remainingTime}</TimeValue>
+          <TimeUnit>시간 · 분</TimeUnit>
         </TimeCard>
       </TimeGrid>
     </Card>
@@ -108,49 +116,41 @@ const ChartArea = styled.div`
 
 const ChargeCircle = styled.div`
   position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 196px;
   height: 196px;
-`;
-
-const CircleTrack = styled.div`
-  position: absolute;
-  inset: 0;
-  border: 17px solid #d9e5ff;
   border-radius: 50%;
+  background: ${({ $percent }) => `
+    conic-gradient(
+      #4e64f4 0deg ${$percent * 3.6}deg,
+      #d9e5ff ${$percent * 3.6}deg 360deg
+    )
+  `};
+  transform: rotate(-90deg);
 `;
 
-const CircleProgress = styled.div`
-  position: absolute;
-  inset: 0;
-  border: 17px solid ${({ theme }) => theme.colors.primary};
-  border-left-color: #6f96ed;
-  border-bottom-color: #6f96ed;
-  border-radius: 50%;
-  transform: rotate(-44deg);
-  clip-path: polygon(0 0, 100% 0, 100% 82%, 10% 100%, 0 100%);
-`;
-
-const CircleContent = styled.div`
-  position: absolute;
-  inset: 17px;
-  z-index: 2;
+const CircleInner = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
   flex-direction: column;
+  width: 162px;
+  height: 162px;
   border-radius: 50%;
   background: #ffffff;
+  transform: rotate(90deg);
 `;
 
 const Percent = styled.strong`
   color: ${({ theme }) => theme.colors.primary};
   font-size: 47px;
   font-weight: 850;
-  line-height: 1;
 `;
 
 const CurrentLabel = styled.span`
-  margin-top: 6px;
+  margin-top: 4px;
   color: #9aa6b8;
   font-size: 12px;
 `;

@@ -5,15 +5,11 @@ const SummaryCard = ({
   title,
   value,
   description,
-  iconColor,
   iconBackground,
 }) => {
   return (
     <Card>
-      <IconBox
-        $iconColor={iconColor}
-        $iconBackground={iconBackground}
-      >
+      <IconBox $iconBackground={iconBackground}>
         <Icon size={25} strokeWidth={2} />
       </IconBox>
 
@@ -60,7 +56,7 @@ const IconBox = styled.div`
   width: 52px;
   height: 52px;
   border-radius: 18px;
-  color: ${({ $iconColor }) => $iconColor};
+  color: #ffffff;
   background: ${({ $iconBackground }) => $iconBackground};
   transition: transform 0.22s ease;
 
@@ -85,14 +81,12 @@ const Value = styled.strong`
   color: ${({ theme }) => theme.colors.text};
   font-size: 25px;
   font-weight: 850;
-  line-height: 1.1;
 `;
 
 const Description = styled.p`
   overflow: hidden;
   color: #8f9bb0;
   font-size: 11px;
-  font-weight: 550;
   text-overflow: ellipsis;
   white-space: nowrap;
 `;

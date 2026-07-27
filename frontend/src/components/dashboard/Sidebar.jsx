@@ -5,10 +5,10 @@ import {
   ChevronLeft,
   ChevronRight,
   ClipboardList,
+  Cpu,
   House,
   Settings,
   TriangleAlert,
-  Cpu,
   Zap,
 } from "lucide-react";
 
@@ -51,6 +51,10 @@ const Sidebar = ({
   onToggle,
   selectedMenu,
   onSelectMenu,
+  deviceId,
+  chargePercent,
+  chargingStatus,
+  onEmergencyClick,
 }) => {
   return (
     <SidebarContainer $isCollapsed={isCollapsed}>
@@ -59,15 +63,23 @@ const Sidebar = ({
           <Zap size={19} strokeWidth={2.5} />
         </LogoIcon>
 
-        {!isCollapsed && <LogoText>ChargeSafe</LogoText>}
+        {!isCollapsed && (
+          <LogoText>ChargeSafe</LogoText>
+        )}
       </LogoArea>
 
       {!isCollapsed && (
         <ChargingStatus>
           <StatusDot />
+
           <div>
-            <StatusTitle>정상 충전 중</StatusTitle>
-            <StatusDescription>CS-0042 · 63%</StatusDescription>
+            <StatusTitle>
+              정상 {chargingStatus ?? "연결 확인 중"}
+            </StatusTitle>
+
+            <StatusDescription>
+              {deviceId ?? "-"} · {chargePercent ?? 0}%
+            </StatusDescription>
           </div>
         </ChargingStatus>
       )}
@@ -84,15 +96,21 @@ const Sidebar = ({
               $isActive={isActive}
               $isCollapsed={isCollapsed}
               onClick={() => onSelectMenu(item.id)}
-              title={isCollapsed ? item.label : undefined}
+              title={
+                isCollapsed ? item.label : undefined
+              }
             >
               <MenuIconArea>
                 <Icon size={19} strokeWidth={1.9} />
 
-                {item.hasNotification && <NotificationDot />}
+                {item.hasNotification && (
+                  <NotificationDot />
+                )}
               </MenuIconArea>
 
-              {!isCollapsed && <MenuLabel>{item.label}</MenuLabel>}
+              {!isCollapsed && (
+                <MenuLabel>{item.label}</MenuLabel>
+              )}
             </MenuButton>
           );
         })}
@@ -101,7 +119,10 @@ const Sidebar = ({
       <EmergencyButton
         type="button"
         $isCollapsed={isCollapsed}
-        title={isCollapsed ? "긴급 알림" : undefined}
+        title={
+          isCollapsed ? "긴급 알림" : undefined
+        }
+        onClick={onEmergencyClick}
       >
         <TriangleAlert size={18} strokeWidth={2} />
 
@@ -111,7 +132,11 @@ const Sidebar = ({
       <ToggleButton
         type="button"
         onClick={onToggle}
-        aria-label={isCollapsed ? "사이드바 펼치기" : "사이드바 접기"}
+        aria-label={
+          isCollapsed
+            ? "사이드바 펼치기"
+            : "사이드바 접기"
+        }
       >
         {isCollapsed ? (
           <ChevronRight size={17} />
@@ -132,10 +157,11 @@ const SidebarContainer = styled.aside`
   z-index: 30;
   display: flex;
   flex-direction: column;
-  width: ${({ $isCollapsed }) => ($isCollapsed ? "64px" : "214px")};
+  width: ${({ $isCollapsed }) =>
+    $isCollapsed ? "64px" : "214px"};
   height: 100vh;
   padding: 0 10px 12px;
-  background: ${({ theme }) => theme.colors.sidebar};
+  background: #111729;
   transition: width 0.3s ease;
 `;
 
@@ -146,7 +172,8 @@ const LogoArea = styled.div`
     $isCollapsed ? "center" : "flex-start"};
   gap: 12px;
   height: 64px;
-  padding: ${({ $isCollapsed }) => ($isCollapsed ? "0" : "0 6px")};
+  padding: ${({ $isCollapsed }) =>
+    $isCollapsed ? "0" : "0 6px"};
 `;
 
 const LogoIcon = styled.div`
@@ -158,7 +185,7 @@ const LogoIcon = styled.div`
   height: 34px;
   border-radius: 50%;
   color: #ffffff;
-  background: ${({ theme }) => theme.colors.primary};
+  background: #4e64f4;
 `;
 
 const LogoText = styled.h1`
@@ -173,7 +200,7 @@ const ChargingStatus = styled.div`
   align-items: center;
   gap: 10px;
   min-height: 48px;
-  margin: 14px 0 14px;
+  margin: 14px 0;
   padding: 0 12px;
   border: 1px solid rgba(86, 199, 106, 0.13);
   border-radius: 17px;
@@ -184,7 +211,7 @@ const StatusDot = styled.span`
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: ${({ theme }) => theme.colors.green};
+  background: #56c76a;
   box-shadow: 0 0 10px rgba(86, 199, 106, 0.5);
 `;
 
@@ -215,23 +242,22 @@ const MenuButton = styled.button`
   gap: 13px;
   width: 100%;
   height: 42px;
-  padding: ${({ $isCollapsed }) => ($isCollapsed ? "0" : "0 13px")};
-  border: none;
+  padding: ${({ $isCollapsed }) =>
+    $isCollapsed ? "0" : "0 13px"};
   border-radius: 12px;
-  color: ${({ $isActive, theme }) =>
-    $isActive ? "#FFFFFF" : theme.colors.sidebarText};
-  background: ${({ $isActive, theme }) =>
-    $isActive ? theme.colors.sidebarActive : "transparent"};
+  color: ${({ $isActive }) =>
+    $isActive ? "#ffffff" : "#9ba8c2"};
+  background: ${({ $isActive }) =>
+    $isActive ? "#4e64f4" : "transparent"};
   cursor: pointer;
   transition:
     color 0.2s ease,
-    background 0.2s ease,
-    transform 0.2s ease;
+    background 0.2s ease;
 
   &:hover {
     color: #ffffff;
-    background: ${({ $isActive, theme }) =>
-      $isActive ? theme.colors.sidebarActive : theme.colors.sidebarHover};
+    background: ${({ $isActive }) =>
+      $isActive ? "#4e64f4" : "#202941"};
   }
 `;
 
@@ -263,22 +289,32 @@ const EmergencyButton = styled.button`
   align-items: center;
   justify-content: ${({ $isCollapsed }) =>
     $isCollapsed ? "center" : "flex-start"};
-  gap: 11px;
+  gap: 13px;
   width: 100%;
-  height: 39px;
+  min-height: ${({ $isCollapsed }) =>
+    $isCollapsed ? "43px" : "48px"};
   margin-top: auto;
-  padding: ${({ $isCollapsed }) => ($isCollapsed ? "0" : "0 12px")};
-  border: 1px solid rgba(240, 92, 97, 0.18);
-  border-radius: 15px;
-  color: ${({ theme }) => theme.colors.red};
-  background: rgba(240, 92, 97, 0.1);
-  font-size: 13px;
-  font-weight: 700;
+  padding: ${({ $isCollapsed }) =>
+    $isCollapsed ? "0" : "0 18px"};
+  border: 1px solid rgba(239, 72, 76, 0.32);
+  border-radius: ${({ $isCollapsed }) =>
+    $isCollapsed ? "50%" : "25px"};
+  color: #ff6267;
+  background: rgba(228, 54, 60, 0.12);
+  font-size: 15px;
+  font-weight: 800;
   cursor: pointer;
+  transition:
+    color 0.2s ease,
+    background 0.2s ease,
+    border-color 0.2s ease,
+    transform 0.2s ease;
 
   &:hover {
     color: #ffffff;
-    background: ${({ theme }) => theme.colors.red};
+    border-color: #ed4247;
+    background: #df383d;
+    transform: translateY(-1px);
   }
 `;
 
