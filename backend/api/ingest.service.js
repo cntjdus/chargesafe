@@ -1,6 +1,6 @@
 const { pool } = require('../database/db');
 const { assess, severity } = require('./risk.service');
-const { notifyGuardians } = require('../notification/notification.service');
+const { notifyGuardians, createNotice } = require('../notification/notification.service');
 
 function toNum(value) {
   if (value == null || value === '') return null;
@@ -25,15 +25,28 @@ async function openSession(deviceId) {
 }
 
 async function closeSession(sessionId) {
-  await pool.query(
+  const { rows } = await pool.query(
     `UPDATE charging_sessions SET
        ended_at   = now(),
        end_reason = CASE WHEN auto_cutoff THEN 'auto_cutoff' ELSE 'completed' END,
        max_temp    = (SELECT MAX(temperature) FROM sensor_readings WHERE session_id = $1),
        max_current = (SELECT MAX(current_a)   FROM sensor_readings WHERE session_id = $1)
-     WHERE id = $1`,
+     WHERE id = $1
+     RETURNING auto_cutoff`,
     [sessionId]
   );
+  return rows[0] || null;
+}
+
+/** 세션의 마지막 전압으로 종료 시점 충전량을 구한다 (충전 완료 알림 문구용) */
+async function endBatteryPercent(sessionId) {
+  const { rows } = await pool.query(
+    `SELECT voltage_v FROM sensor_readings
+     WHERE session_id = $1 AND voltage_v IS NOT NULL
+     ORDER BY recorded_at DESC LIMIT 1`,
+    [sessionId]
+  );
+  return rows.length ? require('./presenters').estimateSoc(rows[0].voltage_v) : null;
 }
 
 // 온도 상승 속도 계산용: 30초 이상 지난 가장 최근 기록과 비교
@@ -58,15 +71,16 @@ async function getCurrentLevel(deviceId) {
 async function upsertStatus(deviceId, status) {
   await pool.query(
     `INSERT INTO device_status
-       (device_id, is_charging, level, temperature, current_a, voltage_v, gas_ppm, smoke, last_seen_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now())
+       (device_id, is_charging, level, temperature, current_a, voltage_v, smoke, last_seen_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, now())
      ON CONFLICT (device_id) DO UPDATE SET
        is_charging = EXCLUDED.is_charging,
        level = EXCLUDED.level,
-       temperature = EXCLUDED.temperature,
-       current_a = EXCLUDED.current_a,
-       voltage_v = EXCLUDED.voltage_v,
-       gas_ppm = EXCLUDED.gas_ppm,
+       -- 값이 없는 수신(예: 충전 종료 신호)에는 마지막으로 알던 값을 유지한다.
+       -- 그래야 충전이 끝난 뒤에도 대시보드에 마지막 센서값이 남는다.
+       temperature = COALESCE(EXCLUDED.temperature, device_status.temperature),
+       current_a = COALESCE(EXCLUDED.current_a, device_status.current_a),
+       voltage_v = COALESCE(EXCLUDED.voltage_v, device_status.voltage_v),
        smoke = EXCLUDED.smoke,
        last_seen_at = now()`,
     [
@@ -76,10 +90,19 @@ async function upsertStatus(deviceId, status) {
       status.temperature,
       status.current_a,
       status.voltage_v,
-      status.gas_ppm,
       status.smoke,
     ]
   );
+}
+
+/** 마지막 수신이 10분 이상 전이면 "기기 연결됨" 알림을 낼 대상으로 본다 */
+async function wasOffline(deviceId) {
+  const { rows } = await pool.query(
+    `SELECT last_seen_at FROM device_status WHERE device_id = $1`,
+    [deviceId]
+  );
+  if (!rows.length || !rows[0].last_seen_at) return true;
+  return Date.now() - new Date(rows[0].last_seen_at).getTime() > 10 * 60 * 1000;
 }
 
 async function handleReading(device, body) {
@@ -88,18 +111,32 @@ async function handleReading(device, body) {
     temperature: toNum(body.temperature),
     current_a: toNum(body.current_a),
     voltage_v: toNum(body.voltage_v),
-    gas_ppm: toNum(body.gas_ppm),
     smoke: Boolean(body.smoke),
   };
 
+  const reconnected = await wasOffline(device.id);
   let session = await getOpenSession(device.id);
 
   if (!charging) {
-    if (session) await closeSession(session.id);
+    if (session) {
+      const closed = await closeSession(session.id);
+      // 자동 차단이 아니라 정상 종료된 경우에만 "충전 완료" 알림을 남긴다
+      if (closed && !closed.auto_cutoff) {
+        const percent = await endBatteryPercent(session.id);
+        await createNotice(device.id, 'success', '충전 완료',
+          percent === null
+            ? '충전이 정상적으로 완료되었습니다.'
+            : `충전량 ${percent}%에 도달하여 충전이 정상적으로 완료되었습니다.`);
+      }
+    }
     await upsertStatus(device.id, { ...reading, level: 'normal', is_charging: false });
     return { level: 'normal', charging: false };
   }
 
+  if (reconnected) {
+    await createNotice(device.id, 'info', '기기 연결됨',
+      '전동휠체어 배터리 충전기가 정상적으로 연결되었습니다.');
+  }
   if (!session) session = await openSession(device.id);
 
   const prev = await getPreviousReading(session.id);
@@ -107,17 +144,9 @@ async function handleReading(device, body) {
 
   await pool.query(
     `INSERT INTO sensor_readings
-       (session_id, temperature, current_a, voltage_v, gas_ppm, smoke, level)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-    [
-      session.id,
-      reading.temperature,
-      reading.current_a,
-      reading.voltage_v,
-      reading.gas_ppm,
-      reading.smoke,
-      level,
-    ]
+       (session_id, temperature, current_a, voltage_v, smoke, level)
+     VALUES ($1, $2, $3, $4, $5, $6)`,
+    [session.id, reading.temperature, reading.current_a, reading.voltage_v, reading.smoke, level]
   );
 
   const prevLevel = await getCurrentLevel(device.id);
@@ -132,7 +161,7 @@ async function handleReading(device, body) {
     );
     // 알림 발송 실패가 센서 수신(안전 기능)까지 막지 않도록 격리
     try {
-      await notifyGuardians(rows[0].id, device.id, level);
+      await notifyGuardians(rows[0].id, device.id, level, cause);
     } catch (err) {
       console.error('[notify] 알림 처리 실패:', err.message);
     }

@@ -20,16 +20,15 @@ async function seed() {
     const recordedAt = new Date(start.getTime() + t * 60000);
     // 온도: 28°C에서 시작해 43°C 부근으로 포화
     const temperature = +(28 + 15.5 * (1 - Math.exp(-t / 35)) + (Math.random() - 0.5)).toFixed(2);
-    // 전류: 정전류 2.5A 유지 후 60분부터 감소 (CC-CV 곡선 흉내)
-    const current = +(t < 60 ? 2.5 + (Math.random() - 0.5) * 0.1 : Math.max(0.4, 2.5 - (t - 60) * 0.07) + (Math.random() - 0.5) * 0.05).toFixed(3);
-    // 전압: 23.8V → 25.2V 완만 상승
-    const voltage = +(23.8 + 1.4 * (t / 90) + (Math.random() - 0.5) * 0.05).toFixed(2);
-    const gas = +(8 + Math.random() * 6).toFixed(2);
+    // 전류: 정전류 1.2A 유지 후 60분부터 감소 (CC-CV 곡선 흉내)
+    const current = +(t < 60 ? 1.2 + (Math.random() - 0.5) * 0.1 : Math.max(0.2, 1.2 - (t - 60) * 0.03) + (Math.random() - 0.5) * 0.05).toFixed(3);
+    // 전압: 11.9V → 12.7V 완만 상승 (12V 계열, 충전량 25% → 95% 상당)
+    const voltage = +(11.9 + 0.8 * (t / 90) + (Math.random() - 0.5) * 0.02).toFixed(2);
 
     await pool.query(
-      `INSERT INTO sensor_readings (session_id, recorded_at, temperature, current_a, voltage_v, gas_ppm, smoke, level)
-       VALUES ($1, $2, $3, $4, $5, $6, false, 'normal')`,
-      [sessionId, recordedAt, temperature, current, voltage, gas]
+      `INSERT INTO sensor_readings (session_id, recorded_at, temperature, current_a, voltage_v, smoke, level)
+       VALUES ($1, $2, $3, $4, $5, false, 'normal')`,
+      [sessionId, recordedAt, temperature, current, voltage]
     );
   }
 

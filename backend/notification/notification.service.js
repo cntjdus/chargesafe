@@ -13,8 +13,38 @@ const TITLES = {
   danger: 'ChargeSafe 위험 알림',
 };
 
-async function notifyGuardians(eventId, deviceId, level) {
+/** 위험 원인 코드 → 알림 제목 (알림 센터에 그대로 표시된다) */
+const CAUSE_TITLES = {
+  smoke: '연기 감지',
+  overheat: '배터리 온도 초과',
+  temp_current_anomaly: '온도·전류 이상 감지',
+  temp_voltage_anomaly: '온도·전압 이상 감지',
+  temp_rise: '온도 급상승 감지',
+  temp_high: '배터리 온도 상승',
+  current_change: '충전 전류 이상',
+};
+
+/**
+ * 위험이 아닌 일반 알림(충전 완료·기기 연결 등)을 보호자 모두에게 남긴다.
+ * 푸시는 보내지 않고 알림 센터에만 표시한다.
+ */
+async function createNotice(deviceId, kind, title, message) {
+  const { rows: guardians } = await pool.query(
+    'SELECT user_id FROM user_devices WHERE device_id = $1',
+    [deviceId]
+  );
+  for (const { user_id } of guardians) {
+    await pool.query(
+      `INSERT INTO notifications (user_id, device_id, kind, title, message, channel, status)
+       VALUES ($1, $2, $3, $4, $5, 'app', 'sent')`,
+      [user_id, deviceId, kind, title, message]
+    );
+  }
+}
+
+async function notifyGuardians(eventId, deviceId, level, cause) {
   const message = MESSAGES[level] || MESSAGES.warning;
+  const title = CAUSE_TITLES[cause] || '충전 이상 감지';
 
   const { rows: guardians } = await pool.query(
     'SELECT user_id FROM user_devices WHERE device_id = $1 AND notify',
@@ -26,9 +56,9 @@ async function notifyGuardians(eventId, deviceId, level) {
   const notifRows = [];
   for (const { user_id } of guardians) {
     const { rows } = await pool.query(
-      `INSERT INTO notifications (event_id, user_id, channel, message, status)
-       VALUES ($1, $2, 'push', $3, 'pending') RETURNING id, user_id`,
-      [eventId, user_id, message]
+      `INSERT INTO notifications (event_id, user_id, device_id, kind, title, channel, message, status)
+       VALUES ($1, $2, $3, $4, $5, 'push', $6, 'pending') RETURNING id, user_id`,
+      [eventId, user_id, deviceId, level === 'danger' ? 'danger' : 'warning', title, message]
     );
     notifRows.push(rows[0]);
   }
@@ -100,4 +130,4 @@ async function notifyGuardians(eventId, deviceId, level) {
   console.log(`[notify] device=${deviceId} level=${level} → 푸시 성공 ${successUsers.size}명 / 대상 ${guardians.length}명`);
 }
 
-module.exports = { notifyGuardians };
+module.exports = { notifyGuardians, createNotice };

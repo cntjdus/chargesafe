@@ -25,9 +25,11 @@ app.get('/', (req, res) => res.json({
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
 app.use('/api/auth', require('./api/auth.routes'));
+app.use('/api/me', require('./api/me.routes'));
 app.use('/api/devices', require('./api/devices.routes'));
 app.use('/api/sessions', require('./api/sessions.routes'));
 app.use('/api/ingest', require('./api/ingest.routes'));
+app.use('/api/notifications', require('./api/notifications.routes'));
 app.use('/api/push', require('./api/push.routes'));
 
 // SPA 폴백 — API 가 아닌 GET 요청은 대시보드로 넘겨 새로고침·딥링크가 깨지지 않게 한다

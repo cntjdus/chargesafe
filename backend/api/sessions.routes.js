@@ -21,7 +21,7 @@ router.get('/:sessionId/readings', async (req, res) => {
   if (!rowCount) return res.status(404).json({ error: 'Session not found' });
 
   const { rows } = await pool.query(
-    `SELECT recorded_at, temperature, current_a, voltage_v, gas_ppm, smoke, level
+    `SELECT recorded_at, temperature, current_a, voltage_v, smoke, level
      FROM sensor_readings
      WHERE session_id = $1
      ORDER BY recorded_at`,
