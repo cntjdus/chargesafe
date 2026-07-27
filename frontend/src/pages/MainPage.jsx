@@ -14,6 +14,7 @@ import ChargingHistoryPage from "./ChargingHistoryPage";
 import DashboardPage from "./DashboardPage";
 import DeviceManagementPage from "./DeviceManagementPage";
 import MonitoringPage from "./MonitoringPage";
+import NotificationCenterPage from "./NotificationCenterPage";
 
 const MOCK_COMMON_DATA = {
   deviceId: "CS-0042",
@@ -112,18 +113,14 @@ const MainPage = ({ onLogout }) => {
       case "history":
         return <ChargingHistoryPage />;
 
+      case "notifications":
+        return <NotificationCenterPage />;
+
       case "devices":
         return (
           <DeviceManagementPage
             onNavigateMonitoring={handleNavigateMonitoring}
           />
-        );
-
-      case "notifications":
-        return (
-          <EmptyPage>
-            알림 센터 페이지를 준비 중입니다.
-          </EmptyPage>
         );
 
       case "settings":
