@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import LoginInput from "./LoginInput";
 
-const LoginForm = () => {
+const LoginForm = ({ onLoginSuccess }) => {
   const [formData, setFormData] = useState({
     userId: "",
     password: "",
@@ -41,6 +41,9 @@ const LoginForm = () => {
     }
 
     console.log("로그인 정보", formData);
+    console.log("onLoginSuccess:", onLoginSuccess);
+
+    onLoginSuccess?.();
   };
 
   const handleGuardianLogin = () => {

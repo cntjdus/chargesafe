@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import styled, { keyframes, css } from "styled-components";
 import LoginPage from "./pages/LoginPage";
 import SplashPage from "./pages/SplashPage";
+import DashboardPage from "./pages/DashboardPage";
 
 const SPLASH_DURATION = 6000;
 const FADE_DURATION = 500;
@@ -9,6 +10,7 @@ const FADE_DURATION = 500;
 function App() {
   const [showSplash, setShowSplash] = useState(true);
   const [isFading, setIsFading] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
     const fadeTimer = setTimeout(() => {
@@ -25,6 +27,15 @@ function App() {
     };
   }, []);
 
+  const handleLoginSuccess = () => {
+    console.log("App에서 로그인 성공 처리");
+    setIsLoggedIn(true);
+  };
+
+  const handleLogout = () => {
+    setIsLoggedIn(false);
+  };
+
   if (showSplash) {
     return (
       <SplashWrapper $isFading={isFading}>
@@ -33,10 +44,18 @@ function App() {
     );
   }
 
+  if (isLoggedIn) {
+    return (
+      <PageWrapper>
+        <DashboardPage onLogout={handleLogout} />
+      </PageWrapper>
+    );
+  }
+
   return (
-    <LoginWrapper>
-      <LoginPage />
-    </LoginWrapper>
+    <PageWrapper>
+      <LoginPage onLoginSuccess={handleLoginSuccess} />
+    </PageWrapper>
   );
 }
 
@@ -73,7 +92,7 @@ const SplashWrapper = styled.div`
     `}
 `;
 
-const LoginWrapper = styled.div`
+const PageWrapper = styled.div`
   width: 100%;
   min-height: 100vh;
   animation: ${fadeIn} ${FADE_DURATION}ms ease forwards;
