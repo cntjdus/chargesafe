@@ -1,13 +1,23 @@
 import styled from "styled-components";
 import { Bell, LogOut, UserRound } from "lucide-react";
 
-const DashboardHeader = ({ user, onLogout }) => {
+const DashboardHeader = ({
+  title = "대시보드",
+  showLiveText = false,
+  user,
+  onLogout,
+}) => {
   return (
     <HeaderContainer>
       <TitleArea>
-        <Title>대시보드</Title>
-        <Separator>·</Separator>
-        <LiveText>실시간 업데이트</LiveText>
+        <Title>{title}</Title>
+
+        {showLiveText && (
+          <>
+            <Separator>·</Separator>
+            <LiveText>실시간 업데이트</LiveText>
+          </>
+        )}
       </TitleArea>
 
       <HeaderActions>
@@ -42,9 +52,13 @@ const DashboardHeader = ({ user, onLogout }) => {
 export default DashboardHeader;
 
 const HeaderContainer = styled.header`
+  position: sticky;
+  top: 0;
+  z-index: 50;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  width: 100%;
   height: 56px;
   padding: 0 22px;
   border-bottom: 1px solid ${({ theme }) => theme.colors.border};
@@ -60,7 +74,7 @@ const TitleArea = styled.div`
 const Title = styled.h2`
   color: ${({ theme }) => theme.colors.text};
   font-size: 19px;
-  font-weight: 800;
+  font-weight: 850;
 `;
 
 const Separator = styled.span`

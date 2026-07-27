@@ -60,12 +60,10 @@ const Sidebar = ({
     <SidebarContainer $isCollapsed={isCollapsed}>
       <LogoArea $isCollapsed={isCollapsed}>
         <LogoIcon>
-          <Zap size={19} strokeWidth={2.5} />
+          <Zap size={18} strokeWidth={2.4} />
         </LogoIcon>
 
-        {!isCollapsed && (
-          <LogoText>ChargeSafe</LogoText>
-        )}
+        {!isCollapsed && <LogoText>ChargeSafe</LogoText>}
       </LogoArea>
 
       {!isCollapsed && (
@@ -73,12 +71,9 @@ const Sidebar = ({
           <StatusDot />
 
           <div>
-            <StatusTitle>
-              정상 {chargingStatus ?? "연결 확인 중"}
-            </StatusTitle>
-
+            <StatusTitle>정상 {chargingStatus}</StatusTitle>
             <StatusDescription>
-              {deviceId ?? "-"} · {chargePercent ?? 0}%
+              {deviceId} · {chargePercent}%
             </StatusDescription>
           </div>
         </ChargingStatus>
@@ -96,21 +91,15 @@ const Sidebar = ({
               $isActive={isActive}
               $isCollapsed={isCollapsed}
               onClick={() => onSelectMenu(item.id)}
-              title={
-                isCollapsed ? item.label : undefined
-              }
+              title={isCollapsed ? item.label : undefined}
             >
               <MenuIconArea>
-                <Icon size={19} strokeWidth={1.9} />
+                <Icon size={18} strokeWidth={1.9} />
 
-                {item.hasNotification && (
-                  <NotificationDot />
-                )}
+                {item.hasNotification && <NotificationDot />}
               </MenuIconArea>
 
-              {!isCollapsed && (
-                <MenuLabel>{item.label}</MenuLabel>
-              )}
+              {!isCollapsed && <MenuLabel>{item.label}</MenuLabel>}
             </MenuButton>
           );
         })}
@@ -119,12 +108,10 @@ const Sidebar = ({
       <EmergencyButton
         type="button"
         $isCollapsed={isCollapsed}
-        title={
-          isCollapsed ? "긴급 알림" : undefined
-        }
         onClick={onEmergencyClick}
+        title={isCollapsed ? "긴급 알림" : undefined}
       >
-        <TriangleAlert size={18} strokeWidth={2} />
+        <TriangleAlert size={18} />
 
         {!isCollapsed && <span>긴급 알림</span>}
       </EmergencyButton>
@@ -133,9 +120,7 @@ const Sidebar = ({
         type="button"
         onClick={onToggle}
         aria-label={
-          isCollapsed
-            ? "사이드바 펼치기"
-            : "사이드바 접기"
+          isCollapsed ? "사이드바 펼치기" : "사이드바 접기"
         }
       >
         {isCollapsed ? (
@@ -153,14 +138,16 @@ export default Sidebar;
 const SidebarContainer = styled.aside`
   position: fixed;
   top: 0;
+  bottom: 0;
   left: 0;
-  z-index: 30;
+  z-index: 100;
   display: flex;
   flex-direction: column;
   width: ${({ $isCollapsed }) =>
     $isCollapsed ? "64px" : "214px"};
   height: 100vh;
   padding: 0 10px 12px;
+  overflow: visible;
   background: #111729;
   transition: width 0.3s ease;
 `;
@@ -171,7 +158,7 @@ const LogoArea = styled.div`
   justify-content: ${({ $isCollapsed }) =>
     $isCollapsed ? "center" : "flex-start"};
   gap: 12px;
-  height: 64px;
+  min-height: 64px;
   padding: ${({ $isCollapsed }) =>
     $isCollapsed ? "0" : "0 6px"};
 `;
@@ -210,9 +197,9 @@ const ChargingStatus = styled.div`
 const StatusDot = styled.span`
   width: 8px;
   height: 8px;
+  flex-shrink: 0;
   border-radius: 50%;
   background: #56c76a;
-  box-shadow: 0 0 10px rgba(86, 199, 106, 0.5);
 `;
 
 const StatusTitle = styled.p`
@@ -244,6 +231,7 @@ const MenuButton = styled.button`
   height: 42px;
   padding: ${({ $isCollapsed }) =>
     $isCollapsed ? "0" : "0 13px"};
+  border: 0;
   border-radius: 12px;
   color: ${({ $isActive }) =>
     $isActive ? "#ffffff" : "#9ba8c2"};
@@ -252,12 +240,17 @@ const MenuButton = styled.button`
   cursor: pointer;
   transition:
     color 0.2s ease,
-    background 0.2s ease;
+    background 0.2s ease,
+    transform 0.2s ease;
 
   &:hover {
     color: #ffffff;
     background: ${({ $isActive }) =>
       $isActive ? "#4e64f4" : "#202941"};
+  }
+
+  &:active {
+    transform: scale(0.98);
   }
 `;
 
@@ -271,7 +264,7 @@ const MenuIconArea = styled.span`
 const NotificationDot = styled.span`
   position: absolute;
   top: -5px;
-  right: -8px;
+  right: -7px;
   width: 7px;
   height: 7px;
   border-radius: 50%;
@@ -291,30 +284,27 @@ const EmergencyButton = styled.button`
     $isCollapsed ? "center" : "flex-start"};
   gap: 13px;
   width: 100%;
-  min-height: ${({ $isCollapsed }) =>
-    $isCollapsed ? "43px" : "48px"};
+  height: 44px;
   margin-top: auto;
   padding: ${({ $isCollapsed }) =>
-    $isCollapsed ? "0" : "0 18px"};
-  border: 1px solid rgba(239, 72, 76, 0.32);
+    $isCollapsed ? "0" : "0 15px"};
+  border: 1px solid rgba(239, 72, 76, 0.28);
   border-radius: ${({ $isCollapsed }) =>
-    $isCollapsed ? "50%" : "25px"};
+    $isCollapsed ? "50%" : "22px"};
   color: #ff6267;
-  background: rgba(228, 54, 60, 0.12);
-  font-size: 15px;
+  background: rgba(228, 54, 60, 0.1);
+  font-size: 14px;
   font-weight: 800;
   cursor: pointer;
   transition:
     color 0.2s ease,
     background 0.2s ease,
-    border-color 0.2s ease,
-    transform 0.2s ease;
+    border-color 0.2s ease;
 
   &:hover {
     color: #ffffff;
-    border-color: #ed4247;
+    border-color: #e94247;
     background: #df383d;
-    transform: translateY(-1px);
   }
 `;
 
@@ -322,7 +312,7 @@ const ToggleButton = styled.button`
   position: absolute;
   top: 50%;
   right: -12px;
-  z-index: 5;
+  z-index: 110;
   display: flex;
   align-items: center;
   justify-content: center;

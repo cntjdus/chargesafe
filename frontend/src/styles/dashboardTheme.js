@@ -16,14 +16,7 @@ export const dashboardTheme = {
     border: "#E3E8F0",
 
     green: "#56C76A",
-    greenLight: "#F0FAF2",
-
-    mint: "#56BD87",
-    purple: "#8054F5",
-    orange: "#F0A148",
-
     red: "#F05C61",
-    redDark: "#E4464C",
     redLight: "#FFF1F1",
   },
 };

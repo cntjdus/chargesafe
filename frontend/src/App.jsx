@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import styled, { keyframes, css } from "styled-components";
+import styled, { css, keyframes } from "styled-components";
+
 import LoginPage from "./pages/LoginPage";
+import MainPage from "./pages/MainPage";
 import SplashPage from "./pages/SplashPage";
-import DashboardPage from "./pages/DashboardPage";
 
 const SPLASH_DURATION = 6000;
 const FADE_DURATION = 500;
@@ -28,11 +29,11 @@ function App() {
   }, []);
 
   const handleLoginSuccess = () => {
-    console.log("App에서 로그인 성공 처리");
     setIsLoggedIn(true);
   };
 
   const handleLogout = () => {
+    localStorage.removeItem("accessToken");
     setIsLoggedIn(false);
   };
 
@@ -47,7 +48,7 @@ function App() {
   if (isLoggedIn) {
     return (
       <PageWrapper>
-        <DashboardPage onLogout={handleLogout} />
+        <MainPage onLogout={handleLogout} />
       </PageWrapper>
     );
   }
