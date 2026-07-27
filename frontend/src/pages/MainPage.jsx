@@ -15,6 +15,7 @@ import DashboardPage from "./DashboardPage";
 import DeviceManagementPage from "./DeviceManagementPage";
 import MonitoringPage from "./MonitoringPage";
 import NotificationCenterPage from "./NotificationCenterPage";
+import SettingsPage from "./SettingsPage";
 
 const MOCK_COMMON_DATA = {
   deviceId: "CS-0042",
@@ -124,11 +125,7 @@ const MainPage = ({ onLogout }) => {
         );
 
       case "settings":
-        return (
-          <EmptyPage>
-            설정 페이지를 준비 중입니다.
-          </EmptyPage>
-        );
+        return <SettingsPage />;
 
       default:
         return (
@@ -232,16 +229,4 @@ const MainArea = styled.div`
 const PageContent = styled.main`
   width: 100%;
   min-height: calc(100vh - 56px);
-`;
-
-const EmptyPage = styled.section`
-  margin: 22px;
-  padding: 60px 24px;
-  border: 1px solid
-    ${({ theme }) =>
-      theme?.colors?.border ?? "#e3e8f0"};
-  border-radius: 18px;
-  color: #7d899e;
-  background: #ffffff;
-  text-align: center;
 `;
