@@ -19,12 +19,12 @@ import {
 import { getThemeModeLabel } from "../styles/appThemes";
 
 const MOCK_USER = {
-  name: "김철수",
+  name: "김민구",
   description: "전동휠체어 사용자",
 };
 
 const MOCK_GUARDIAN = {
-  name: "김보호",
+  name: "박산하",
   relation: "딸",
 };
 

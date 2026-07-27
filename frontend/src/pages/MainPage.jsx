@@ -23,12 +23,12 @@ const MOCK_COMMON_DATA = {
   chargingStatus: "충전 중",
 
   user: {
-    name: "김철수",
+    name: "김민구",
     role: "관리자",
   },
 
   guardian: {
-    name: "김보호",
+    name: "박산하",
     relation: "딸",
     phoneNumber: "010-1234-5678",
   },

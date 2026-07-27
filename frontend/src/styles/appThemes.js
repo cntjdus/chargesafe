@@ -21,7 +21,7 @@ export const themeModeOptions = [
   },
   {
     id: THEME_MODES.CUSTOM,
-    name: "사용자 설정 모드",
+    name: "고대비 모드",
     badge: "접근성",
     description:
       "고대비 색상을 적용합니다. 시력이 약하거나 색 구분이 필요한 경우에 적합합니다.",
@@ -34,7 +34,7 @@ export const getThemeModeLabel = (themeMode) => {
       return "다크 모드";
 
     case THEME_MODES.CUSTOM:
-      return "사용자 설정";
+      return "고대비 모드";
 
     case THEME_MODES.LIGHT:
     default:
