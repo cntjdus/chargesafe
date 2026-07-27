@@ -28,7 +28,7 @@ const AppGlobalStyle = createGlobalStyle`
     color-scheme: dark;
 
     --app-background: #0b101a;
-    --app-header-background: #151a23;
+    --app-header-background: #4D63F5;
     --app-sidebar-background: #0a0e15;
 
     /*
