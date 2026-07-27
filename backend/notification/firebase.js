@@ -18,7 +18,9 @@ function loadServiceAccount() {
   }
   const saPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH;
   if (saPath) {
-    return JSON.parse(fs.readFileSync(path.resolve(saPath), 'utf8'));
+    // 상대 경로는 backend/ 기준으로 해석한다 (실행 위치와 무관하게 동작)
+    const resolved = path.isAbsolute(saPath) ? saPath : path.join(__dirname, '..', saPath);
+    return JSON.parse(fs.readFileSync(resolved, 'utf8'));
   }
   return null;
 }

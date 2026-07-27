@@ -8,8 +8,9 @@ ESP32가 보내는 센서 데이터를 수신·저장하고, 위험 단계를 �
 - Node.js + Express 5
 - PostgreSQL (로컬 또는 Supabase)
 - JWT 인증 (보호자 계정), API 키 인증 (기기)
-- 프론트엔드(보호자 대시보드)는 별도 담당/브랜치에서 관리하며 이 저장소에는 포함되지 않습니다.
-  (로컬 개발용 정적 파일 `public/`, 디자인 시안 `Figma/`는 `.gitignore`로 저장소에서 제외)
+- 보호자 대시보드는 `../frontend` 의 React + Vite 앱이며, 빌드 결과(`frontend/dist`)를
+  이 서버가 정적 파일로 함께 서빙합니다. 프론트엔드는 담당 분리로 `.gitignore` 처리되어
+  이 저장소에는 포함되지 않으므로, 없으면 API 서버로만 동작합니다.
 
 ## 시작하기
 
@@ -24,12 +25,23 @@ cp .env.example .env
 # 3. DB 스키마 생성 (PostgreSQL이 실행 중이어야 함)
 npm run migrate
 
-# 4. 개발 서버 실행
+# 4. 대시보드 빌드 (frontend/ 가 있는 경우)
+npm run build:frontend
+
+# 5. 개발 서버 실행
 npm run dev
 ```
 
 `http://localhost:3000` 에 접속하면 보호자 대시보드가 열립니다.
-(`/health` 가 `{"status":"ok"}` 를 반환하면 서버 정상)
+(`/health` 가 `{"status":"ok"}` 를 반환하면 서버 정상. 대시보드를 빌드하지 않았다면
+루트 경로는 API 안내 JSON을 반환합니다.)
+
+대시보드를 수정하며 개발할 때는 Vite 개발 서버를 함께 쓰면 편합니다
+(`/api` 요청은 자동으로 3000번 백엔드로 전달됩니다):
+
+```bash
+cd ../frontend && npm run dev
+```
 
 시연·프론트엔드 개발용 샘플 충전 세션이 필요하면:
 
@@ -72,8 +84,29 @@ render.yaml / DEPLOY.md        배포 설정 및 가이드
 .env.example                   환경 변수 예시
 ```
 
-> 프론트엔드(`public/`, `Figma/`)와 비밀값(`.env`, `firebase-service-account.json`)은
-> `.gitignore`로 저장소에서 제외됩니다. 로컬 개발용으로만 `backend/` 아래에 존재합니다.
+대시보드(`../frontend`)는 루트 README의 `frontend/src · frontend/public` 구조를 따릅니다.
+
+```
+frontend/
+  index.html                  진입점 (Vite)
+  src/
+    app/App.tsx               로그인·회원가입 + 6개 화면
+                              (대시보드 / 실시간 모니터링 / 충전 이력 / 알림 센터 / 기기 관리 / 설정)
+    lib/api.ts                백엔드 API 클라이언트 (JWT 처리·응답 정규화)
+    lib/hooks.ts              폴링 기반 조회 훅 (기기·세션·센서·이벤트)
+    lib/DeviceContext.tsx     선택된 기기를 화면 간 공유
+    lib/format.ts             날짜·단위·위험단계 표시 변환
+    lib/push.ts               FCM 웹 푸시 켜기/끄기
+    app/components/ui/        shadcn UI 컴포넌트
+  public/                     로고·아이콘 등 정적 파일
+    logo.svg, favicon.svg     ChargeSafe 로고·파비콘
+    firebase-config.js        FCM 웹 설정 (공개 값)
+    firebase-messaging-sw.js  백그라운드 알림 서비스워커
+  dist/                       빌드 결과 — 백엔드가 이 폴더를 서빙
+```
+
+> 프론트엔드(`frontend/`)와 비밀값(`.env`, `firebase-service-account.json`)은
+> `.gitignore`로 저장소에서 제외됩니다. 로컬 개발용으로만 존재합니다.
 
 ## API 요약
 
@@ -85,10 +118,15 @@ render.yaml / DEPLOY.md        배포 설정 및 가이드
 | POST | `/api/auth/login` | 로그인 → `{ token, user }` |
 | GET | `/api/devices` | 내 기기 목록 + 현재 상태 |
 | POST | `/api/devices` | 기기 등록 `{ serial_number, name?, location? }` → API 키 1회 발급 |
+| DELETE | `/api/devices/:id` | 기기 등록 해제 (이력은 보존, 같은 시리얼로 재등록 가능) |
 | GET | `/api/devices/:id/status` | 기기 현재 상태 |
 | GET | `/api/devices/:id/sessions` | 충전 이력 (`?limit=20`) |
 | GET | `/api/devices/:id/events` | 위험 이벤트 이력 |
+| GET | `/api/devices/:id/readings` | 기간별 센서 기록 (`?minutes=60`, 모니터링 그래프용) |
 | GET | `/api/sessions/:id/readings` | 세션의 센서 기록 (그래프용) |
+| GET | `/api/push/status` | 서버의 FCM 설정 여부 |
+| POST | `/api/push/register` | FCM 푸시 토큰 등록 `{ token }` |
+| POST | `/api/push/unregister` | FCM 푸시 토큰 해제 `{ token }` |
 
 ### 기기용 (API 키 — `X-API-Key: csk_...`)
 
@@ -123,7 +161,7 @@ curl -X POST http://localhost:3000/api/ingest/readings \
 
 1. [Firebase 콘솔](https://console.firebase.google.com)에서 프로젝트 생성 (이름 예: `chargesafe`)
 2. **웹 앱 설정 붙여넣기** — 프로젝트 설정 → 일반 → "내 앱" → 웹 앱(`</>`) 추가 →
-   표시되는 `firebaseConfig` 객체를 [public/js/firebase-config.js](public/js/firebase-config.js)의 `FIREBASE_CONFIG`에 붙여넣기
+   표시되는 `firebaseConfig` 객체를 `../frontend/public/firebase-config.js`의 `FIREBASE_CONFIG`에 붙여넣기
 3. **VAPID 키 붙여넣기** — 프로젝트 설정 → 클라우드 메시징 → 웹 푸시 인증서 → "키 쌍 생성" →
    키 문자열을 같은 파일의 `FIREBASE_VAPID_KEY`에 붙여넣기
 4. **서비스 계정 키 저장** — 프로젝트 설정 → 서비스 계정 → "새 비공개 키 생성" →
@@ -133,7 +171,7 @@ curl -X POST http://localhost:3000/api/ingest/readings \
 
 동작 방식: 경고/위험 단계 진입 시 서버가 보호자의 등록된 모든 브라우저로 푸시를 발송하고,
 결과(sent/failed/pending)를 `notifications` 테이블에 기록합니다. 만료된 토큰은 자동 삭제됩니다.
-탭이 백그라운드이거나 닫혀 있어도 [public/firebase-messaging-sw.js](public/firebase-messaging-sw.js) 서비스 워커가 알림을 표시합니다.
+탭이 백그라운드이거나 닫혀 있어도 `../frontend/public/firebase-messaging-sw.js` 서비스 워커가 알림을 표시합니다.
 
 ## TODO
 

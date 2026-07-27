@@ -35,18 +35,41 @@ router.post('/', async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const { rows } = await client.query(
-      `INSERT INTO devices (serial_number, api_key_hash, name, location)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, serial_number, name, location`,
-      [serial_number, apiKeyHash, name || null, location || null]
+
+    // 이전에 등록 해제되어 보호자가 아무도 없는 기기라면, 이력을 유지한 채 다시 활성화한다
+    const { rows: existing } = await client.query(
+      `SELECT d.id FROM devices d
+       WHERE d.serial_number = $1
+         AND d.is_active = false
+         AND NOT EXISTS (SELECT 1 FROM user_devices ud WHERE ud.device_id = d.id)`,
+      [serial_number]
     );
+
+    let device;
+    if (existing.length) {
+      const { rows } = await client.query(
+        `UPDATE devices SET api_key_hash = $2, name = $3, location = $4, is_active = true
+         WHERE id = $1
+         RETURNING id, serial_number, name, location`,
+        [existing[0].id, apiKeyHash, name || null, location || null]
+      );
+      device = rows[0];
+    } else {
+      const { rows } = await client.query(
+        `INSERT INTO devices (serial_number, api_key_hash, name, location)
+         VALUES ($1, $2, $3, $4)
+         RETURNING id, serial_number, name, location`,
+        [serial_number, apiKeyHash, name || null, location || null]
+      );
+      device = rows[0];
+    }
+
     await client.query(
-      'INSERT INTO user_devices (user_id, device_id) VALUES ($1, $2)',
-      [req.user.id, rows[0].id]
+      'INSERT INTO user_devices (user_id, device_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+      [req.user.id, device.id]
     );
     await client.query('COMMIT');
-    res.status(201).json({ ...rows[0], api_key: apiKey });
+    res.status(201).json({ ...device, api_key: apiKey });
   } catch (err) {
     await client.query('ROLLBACK');
     if (err.code === '23505') {
@@ -71,6 +94,33 @@ async function requireDeviceAccess(req, res, next) {
   req.deviceId = deviceId;
   next();
 }
+
+// 기기 등록 해제 — 내 목록에서 제거한다.
+// 마지막 보호자였다면 기기를 비활성화해 더 이상 데이터를 받지 않게 하고, 충전 이력은 보존한다.
+router.delete('/:deviceId', requireDeviceAccess, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(
+      'DELETE FROM user_devices WHERE user_id = $1 AND device_id = $2',
+      [req.user.id, req.deviceId]
+    );
+    const { rowCount } = await client.query(
+      'SELECT 1 FROM user_devices WHERE device_id = $1 LIMIT 1',
+      [req.deviceId]
+    );
+    if (!rowCount) {
+      await client.query('UPDATE devices SET is_active = false WHERE id = $1', [req.deviceId]);
+    }
+    await client.query('COMMIT');
+    res.json({ ok: true });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+});
 
 router.get('/:deviceId/status', requireDeviceAccess, async (req, res) => {
   const { rows } = await pool.query(
