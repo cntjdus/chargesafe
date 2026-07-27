@@ -19,7 +19,8 @@ app.get('/', (req, res) => res.json({
   service: 'ChargeSafe API',
   message: 'ChargeSafe 백엔드 API 서버입니다. 보호자 대시보드는 별도로 배포됩니다.',
   health: '/health',
-  endpoints: ['/api/auth', '/api/devices', '/api/sessions', '/api/ingest', '/api/push'],
+  endpoints: ['/api/auth', '/api/me', '/api/devices', '/api/sessions',
+    '/api/ingest', '/api/notifications', '/api/push'],
 }));
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
