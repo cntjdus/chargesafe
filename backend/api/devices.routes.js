@@ -11,6 +11,8 @@ router.use(userAuth);
 const DEVICE_COLUMNS = `
   d.id, d.serial_number, d.name, d.location, d.is_active,
   d.firmware_version, d.target_percent, ud.is_favorite,
+  d.cutoff_temperature, d.auto_cutoff_enabled, d.cooling_fan_enabled,
+  d.long_charge_warning_hours,
   s.is_charging, s.level, s.temperature, s.current_a, s.voltage_v,
   s.smoke, s.last_seen_at`;
 
@@ -94,7 +96,7 @@ async function requireDeviceAccess(req, res, next) {
   const asNumber = /^\d+$/.test(raw) ? Number(raw) : null;
 
   const { rows } = await pool.query(
-    `SELECT d.id FROM devices d
+    `SELECT d.id, d.serial_number FROM devices d
      JOIN user_devices ud ON ud.device_id = d.id
      WHERE ud.user_id = $1 AND (d.serial_number = $2 OR ($3::bigint IS NOT NULL AND d.id = $3::bigint))
      LIMIT 1`,
@@ -102,6 +104,7 @@ async function requireDeviceAccess(req, res, next) {
   );
   if (!rows.length) return res.status(404).json({ error: 'Device not found' });
   req.deviceId = rows[0].id;
+  req.deviceSerial = rows[0].serial_number;   // 응답에 기기 코드로 돌려줄 때 사용
   next();
 }
 
@@ -112,19 +115,38 @@ router.patch('/:deviceId', requireDeviceAccess, async (req, res) => {
   const location = body.location === undefined ? undefined : String(body.location).trim() || null;
   const target = body.targetPercent === undefined ? undefined : Number(body.targetPercent);
   const favorite = body.isFavorite === undefined ? undefined : Boolean(body.isFavorite);
+  // 설정 화면의 안전 설정
+  const cutoffTemp = body.cutoffTemperature === undefined ? undefined : Number(body.cutoffTemperature);
+  const autoCutoff = body.automaticCutoff === undefined ? undefined : Boolean(body.automaticCutoff);
+  const coolingFan = body.coolingFan === undefined ? undefined : Boolean(body.coolingFan);
+  const longWarn = body.longChargeWarningHours === undefined
+    ? undefined : Number(body.longChargeWarningHours);
 
   if (target !== undefined && (!Number.isFinite(target) || target < 50 || target > 100)) {
     return res.status(400).json({ error: 'targetPercent must be between 50 and 100' });
   }
+  if (cutoffTemp !== undefined && (!Number.isFinite(cutoffTemp) || cutoffTemp < 40 || cutoffTemp > 65)) {
+    return res.status(400).json({ error: 'cutoffTemperature must be between 40 and 65' });
+  }
+  if (longWarn !== undefined && (!Number.isFinite(longWarn) || longWarn < 0 || longWarn > 48)) {
+    return res.status(400).json({ error: 'longChargeWarningHours must be between 0 and 48' });
+  }
 
-  if (name !== undefined || location !== undefined || target !== undefined) {
+  const hasDeviceChange = [name, location, target, cutoffTemp, autoCutoff, coolingFan, longWarn]
+    .some((v) => v !== undefined);
+  if (hasDeviceChange) {
     await pool.query(
       `UPDATE devices SET
          name = COALESCE($2, name),
          location = COALESCE($3, location),
-         target_percent = COALESCE($4, target_percent)
+         target_percent = COALESCE($4, target_percent),
+         cutoff_temperature = COALESCE($5, cutoff_temperature),
+         auto_cutoff_enabled = COALESCE($6, auto_cutoff_enabled),
+         cooling_fan_enabled = COALESCE($7, cooling_fan_enabled),
+         long_charge_warning_hours = COALESCE($8, long_charge_warning_hours)
        WHERE id = $1`,
-      [req.deviceId, name ?? null, location ?? null, target ?? null]
+      [req.deviceId, name ?? null, location ?? null, target ?? null,
+        cutoffTemp ?? null, autoCutoff ?? null, coolingFan ?? null, longWarn ?? null]
     );
   }
   if (favorite !== undefined) {
@@ -178,6 +200,60 @@ router.get('/:deviceId/status', requireDeviceAccess, async (req, res) => {
     [req.deviceId]
   );
   res.json(rows[0] || { device_id: req.deviceId, is_charging: false, level: 'normal' });
+});
+
+// 모니터링 화면의 구간 설정 — 프론트 TimeRangeTabs 의 id 와 같은 이름을 쓴다.
+// bucketSec 만큼 평균을 내어 points 개수에 맞춰 내려준다 (그래프 점 개수 고정).
+const MONITORING_RANGES = {
+  realtime: { windowSec: 24 * 15, bucketSec: 15, points: 24, label: 'time' },
+  hour: { windowSec: 30 * 120, bucketSec: 120, points: 30, label: 'time' },
+  today: { windowSec: null, bucketSec: 3600, points: 24, label: 'time' }, // 오늘 0시부터
+  week: { windowSec: 28 * 6 * 3600, bucketSec: 6 * 3600, points: 28, label: 'day' },
+};
+
+// 모니터링 그래프 — MonitoringPage(api/monitoringApi.js) 가 부르는 엔드포인트
+router.get('/:deviceId/monitoring', requireDeviceAccess, async (req, res) => {
+  const range = String(req.query.range || 'realtime');
+  const cfg = MONITORING_RANGES[range];
+  if (!cfg) {
+    return res.status(400).json({ error: 'range must be realtime, hour, today or week' });
+  }
+
+  // 시간 버킷별 평균 — 구간이 길어도 점 개수가 일정하게 유지된다
+  const since = cfg.windowSec === null
+    ? "date_trunc('day', now())"
+    : `now() - make_interval(secs => ${cfg.bucketSec * cfg.points})`;
+
+  const { rows } = await pool.query(
+    `SELECT
+       to_timestamp(floor(extract(epoch FROM r.recorded_at) / $2) * $2) AS bucket,
+       avg(r.temperature) AS temperature,
+       avg(r.current_a)   AS current,
+       avg(r.voltage_v)   AS voltage
+     FROM sensor_readings r
+     JOIN charging_sessions s ON s.id = r.session_id
+     WHERE s.device_id = $1 AND r.recorded_at >= ${since}
+     GROUP BY bucket
+     ORDER BY bucket DESC
+     LIMIT $3`,
+    [req.deviceId, cfg.bucketSec, cfg.points]
+  );
+
+  // 최신순으로 잘라온 뒤 그래프용으로 시간순으로 뒤집는다
+  const measurements = rows.reverse().map((r) => ({
+    timestamp: new Date(r.bucket).toISOString(),
+    label: cfg.label === 'day' ? present.monthDay(r.bucket) : present.hhmm(r.bucket),
+    temperature: r.temperature === null ? null : Number(Number(r.temperature).toFixed(1)),
+    current: r.current === null ? null : Number(Number(r.current).toFixed(2)),
+    voltage: r.voltage === null ? null : Number(Number(r.voltage).toFixed(2)),
+  }));
+
+  res.json({
+    deviceId: req.deviceSerial,
+    range,
+    updatedAt: new Date().toISOString(),
+    measurements,
+  });
 });
 
 // 대시보드 — DashboardPage 가 기대하는 형태 그대로 조립해서 내려준다.

@@ -57,6 +57,12 @@ function hhmm(iso) {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
+/** "7/22" — 주간 그래프의 X축 라벨 */
+function monthDay(iso) {
+  const d = new Date(iso);
+  return `${d.getMonth() + 1}/${d.getDate()}`;
+}
+
 /** 분 → "4시간 18분" */
 function durationText(minutes) {
   const m = Math.max(0, Math.round(minutes));
@@ -100,7 +106,12 @@ function toDevice(row) {
     firmware: row.firmware_version === LATEST_FIRMWARE ? '최신' : '업데이트 필요',
     needsUpdate: row.firmware_version !== LATEST_FIRMWARE,
     isFavorite: Boolean(row.is_favorite),
+    // 설정 화면에서 기기별로 저장하는 값들
     targetPercent: row.target_percent ?? 85,
+    cutoffTemperature: row.cutoff_temperature ?? 50,
+    automaticCutoff: row.auto_cutoff_enabled !== false,
+    coolingFan: row.cooling_fan_enabled !== false,
+    longChargeWarningHours: row.long_charge_warning_hours ?? 12,
   };
 }
 
@@ -184,6 +195,7 @@ module.exports = {
   dateGroup,
   fullDate,
   hhmm,
+  monthDay,
   durationText,
   deviceStatus,
   sensorBlock,

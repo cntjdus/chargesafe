@@ -10,7 +10,7 @@ function toNum(value) {
 
 async function getOpenSession(deviceId) {
   const { rows } = await pool.query(
-    'SELECT id, auto_cutoff FROM charging_sessions WHERE device_id = $1 AND ended_at IS NULL ORDER BY started_at DESC LIMIT 1',
+    'SELECT id, auto_cutoff, started_at FROM charging_sessions WHERE device_id = $1 AND ended_at IS NULL ORDER BY started_at DESC LIMIT 1',
     [deviceId]
   );
   return rows[0] || null;
@@ -18,7 +18,7 @@ async function getOpenSession(deviceId) {
 
 async function openSession(deviceId) {
   const { rows } = await pool.query(
-    'INSERT INTO charging_sessions (device_id) VALUES ($1) RETURNING id, auto_cutoff',
+    'INSERT INTO charging_sessions (device_id) VALUES ($1) RETURNING id, auto_cutoff, started_at',
     [deviceId]
   );
   return rows[0];
@@ -95,6 +95,28 @@ async function upsertStatus(deviceId, status) {
   );
 }
 
+/**
+ * 장시간 충전 경고 — 세션이 기준 시간을 넘겼는데 아직 경고를 안 냈으면 한 번만 남긴다.
+ * hours 가 0 이면 사용하지 않는 것으로 본다.
+ */
+async function checkLongCharge(deviceId, session, hours) {
+  if (!hours || hours <= 0) return;
+  const elapsedH = (Date.now() - new Date(session.started_at).getTime()) / 3600000;
+  if (elapsedH < hours) return;
+
+  // 이번 세션이 시작된 뒤로 같은 경고를 이미 남겼는지 확인 (중복 방지)
+  const { rowCount } = await pool.query(
+    `SELECT 1 FROM notifications
+     WHERE device_id = $1 AND title = '충전 시간 초과' AND occurred_at >= $2
+     LIMIT 1`,
+    [deviceId, session.started_at]
+  );
+  if (rowCount) return;
+
+  await createNotice(deviceId, 'warning', '충전 시간 초과',
+    `${hours}시간 이상 충전이 계속되고 있습니다. 충전 상태를 확인해 주세요.`);
+}
+
 /** 마지막 수신이 10분 이상 전이면 "기기 연결됨" 알림을 낼 대상으로 본다 */
 async function wasOffline(deviceId) {
   const { rows } = await pool.query(
@@ -139,8 +161,10 @@ async function handleReading(device, body) {
   }
   if (!session) session = await openSession(device.id);
 
+  // 설정 화면에서 정한 기기별 온도 차단 기준을 위험 판단에 반영한다
   const prev = await getPreviousReading(session.id);
-  const { level, cause } = assess(reading, prev);
+  const { level, cause } = assess(reading, prev,
+    device.cutoff_temperature ? { tempDanger: Number(device.cutoff_temperature) } : {});
 
   await pool.query(
     `INSERT INTO sensor_readings
@@ -151,6 +175,13 @@ async function handleReading(device, body) {
 
   const prevLevel = await getCurrentLevel(device.id);
   await upsertStatus(device.id, { ...reading, level, is_charging: true });
+
+  // 장시간 충전 경고 (설정 화면에서 끄면 0 이 되어 건너뛴다)
+  try {
+    await checkLongCharge(device.id, session, device.long_charge_warning_hours);
+  } catch (err) {
+    console.error('[notify] 장시간 충전 경고 실패:', err.message);
+  }
 
   // 단계가 경고 이상으로 "올라간" 순간에만 이벤트·알림 발생 (같은 단계 반복 시 중복 알림 방지)
   if (severity(level) > severity(prevLevel) && severity(level) >= severity('warning')) {
@@ -167,7 +198,9 @@ async function handleReading(device, body) {
     }
   }
 
-  if (level === 'danger') {
+  // 자동 차단을 꺼둔 기기는 위험이어도 강제로 끊지 않는다 (설정 화면의 "자동 차단")
+  const autoCutoffOn = device.auto_cutoff_enabled !== false;
+  if (level === 'danger' && autoCutoffOn) {
     await pool.query(
       `UPDATE charging_sessions
        SET auto_cutoff = true, cutoff_cause = COALESCE(cutoff_cause, $2)
@@ -176,8 +209,16 @@ async function handleReading(device, body) {
     );
   }
 
-  // 펌웨어는 이 응답의 level을 보고 차단·냉각팬 동작을 결정할 수 있다
-  return { level, cause, session_id: session.id };
+  // 펌웨어는 이 응답을 보고 동작을 결정한다
+  //   cutoff  — 충전을 끊어야 하는지
+  //   fan     — 냉각팬을 켜야 하는지 (주의 단계 이상 + 냉각팬 설정이 켜져 있을 때)
+  return {
+    level,
+    cause,
+    session_id: session.id,
+    cutoff: level === 'danger' && autoCutoffOn,
+    fan: device.cooling_fan_enabled !== false && severity(level) >= severity('caution'),
+  };
 }
 
 module.exports = { handleReading };

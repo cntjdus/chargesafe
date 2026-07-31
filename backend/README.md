@@ -32,12 +32,12 @@ npm run build:frontend
 npm run dev
 ```
 
-`http://localhost:3000` 에 접속하면 보호자 대시보드가 열립니다.
+`http://localhost:8000` 에 접속하면 보호자 대시보드가 열립니다.
 (`/health` 가 `{"status":"ok"}` 를 반환하면 서버 정상. 대시보드를 빌드하지 않았다면
 루트 경로는 API 안내 JSON을 반환합니다.)
 
 대시보드를 수정하며 개발할 때는 Vite 개발 서버를 함께 쓰면 편합니다
-(`/api` 요청은 자동으로 3000번 백엔드로 전달됩니다):
+(`/api` 요청은 자동으로 8000번 백엔드로 전달됩니다):
 
 ```bash
 cd ../frontend && npm run dev
@@ -65,6 +65,7 @@ api/                          API 엔드포인트 + 인증·처리 로직
   push.routes.js              FCM 푸시 토큰 등록/해제
   notifications.routes.js     알림 목록·읽음 처리
   me.routes.js                프로필·보호자·대표 기기
+  cors.js                     다른 주소의 프론트엔드 호출 허용 (CORS)
   presenters.js               DB 행 → 화면용 형태 변환 (날짜·상태 문자열 포함)
   userAuth.js                 보호자 JWT 인증 미들웨어
   deviceAuth.js               ESP32 API 키 인증 미들웨어
@@ -79,7 +80,8 @@ database/                     데이터베이스
     001_init.sql              사용자·기기·세션·센서·위험이벤트·알림 스키마
     002_push_tokens.sql       FCM 푸시 토큰 테이블
     003_frontend_fields.sql   아이디 로그인·즐겨찾기·펌웨어·목표충전량·알림 읽음
-    004_notification_types.sql 알림 유형(위험/주의/완료/정보)·보호자 관계
+    004_notification_types.sql 알림 유형(완료·정보)·보호자 관계
+    005_device_settings.sql   기기별 안전 설정(온도 차단·자동 차단·냉각팬·장시간 경고)
 
 notification/                 보호자 알림
   notification.service.js     FCM 발송 + notifications 테이블 기록
@@ -119,14 +121,13 @@ frontend/
 
 | 메서드 | 경로 | 설명 |
 |---|---|---|
-> `:id` 는 내부 숫자 id 와 시리얼 번호(화면에 보이는 기기 코드) 둘 다 사용할 수 있습니다.
-
 | POST | `/api/auth/register` | 회원가입 `{ userId, password, name, email?, phone? }` |
 | POST | `/api/auth/login` | 로그인 `{ userId, password }` → `{ token, user }` (아이디·이메일 모두 허용) |
 | GET | `/api/me` | 프로필·보호자·대표 기기 (상단바/설정 화면 공통 정보) |
 | GET | `/api/devices` | 내 기기 목록 (화면용 형태: `battery`, `status`, `firmware`, `isFavorite` 등) |
 | POST | `/api/devices` | 기기 등록 `{ serial_number, name?, location? }` → API 키 1회 발급 |
-| PATCH | `/api/devices/:id` | 기기 설정 수정 `{ name?, location?, isFavorite?, targetPercent? }` |
+| PATCH | `/api/devices/:id` | 기기 설정 수정 (아래 표 참고) |
+| GET | `/api/devices/:id/monitoring` | 모니터링 그래프 (`?range=realtime\|hour\|today\|week`) |
 | DELETE | `/api/devices/:id` | 기기 등록 해제 (이력은 보존, 같은 시리얼로 재등록 가능) |
 | GET | `/api/devices/:id/dashboard` | 대시보드 한 번에 조회 (충전량·완료 예정·센서 3종·미확인 알림) |
 | GET | `/api/devices/:id/history` | 충전 이력 + 요약 통계 (`{ items, summary }`) |
@@ -142,6 +143,36 @@ frontend/
 | POST | `/api/push/register` | FCM 푸시 토큰 등록 `{ token }` |
 | POST | `/api/push/unregister` | FCM 푸시 토큰 해제 `{ token }` |
 
+> `:id` 는 내부 숫자 id 와 시리얼 번호(화면에 보이는 기기 코드) 둘 다 사용할 수 있습니다.
+
+**`PATCH /api/devices/:id` 로 저장할 수 있는 값** (설정 화면 항목)
+
+| 필드 | 범위 | 설명 |
+|---|---|---|
+| `name`, `location` | 문자열 | 기기 이름·설치 위치 |
+| `isFavorite` | true/false | 즐겨찾기 (목록 상단 고정) |
+| `targetPercent` | 50~100 | 충전 모드의 목표 충전량 |
+| `cutoffTemperature` | 40~65 | 온도 차단 기준 (위험 판단에 즉시 반영) |
+| `automaticCutoff` | true/false | 끄면 위험이어도 강제 차단하지 않음 |
+| `coolingFan` | true/false | 주의 단계 이상에서 냉각팬 작동 여부 |
+| `longChargeWarningHours` | 0~48 | 장시간 충전 경고 기준 (0이면 사용 안 함) |
+
+**`GET /api/devices/:id/monitoring` 응답**
+
+```json
+{
+  "deviceId": "CS-0042",
+  "range": "realtime",
+  "updatedAt": "2026-07-28T01:57:00.000Z",
+  "measurements": [
+    { "timestamp": "...", "label": "01:57", "temperature": 31.6, "current": 1.2, "voltage": 12.34 }
+  ]
+}
+```
+
+구간별로 시간 버킷 평균을 내어 점 개수를 고정합니다 —
+실시간 15초×24개 / 1시간 2분×30개 / 오늘 1시간×24개 / 7일 6시간×28개.
+
 ### 기기용 (API 키 — `X-API-Key: csk_...`)
 
 | 메서드 | 경로 | 설명 |
@@ -151,7 +182,7 @@ frontend/
 ESP32 전송 예시:
 
 ```bash
-curl -X POST http://localhost:3000/api/ingest/readings \
+curl -X POST http://localhost:8000/api/ingest/readings \
   -H "X-API-Key: csk_발급받은키" \
   -H "Content-Type: application/json" \
   -d '{"charging": true, "temperature": 32.0, "current_a": 1.2, "voltage_v": 12.4, "smoke": false}'

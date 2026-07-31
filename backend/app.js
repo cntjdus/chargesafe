@@ -5,6 +5,10 @@ require('dotenv').config({ path: path.join(__dirname, '.env') });
 const express = require('express');
 
 const app = express();
+const { cors } = require('./api/cors');
+
+// 프론트엔드가 다른 주소에서 호출할 수 있도록 CORS 를 먼저 적용한다
+app.use(cors);
 app.use(express.json());
 
 // 보호자 대시보드는 React(Vite) 앱이므로 빌드 결과(frontend/dist)를 서빙한다.

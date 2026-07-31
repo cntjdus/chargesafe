@@ -22,8 +22,9 @@ function severity(level) {
 
 // 판단 규칙:
 //   위험: 연기 감지 또는 고온 / 경고: 온도+전류·전압 이상 패턴 / 주의: 온도 상승 속도 또는 전류 변화
-function assess(reading, prevReading) {
-  const t = THRESHOLDS;
+// overrides 로 기기별 설정(설정 화면의 "온도 차단 기준")을 덮어쓸 수 있다.
+function assess(reading, prevReading, overrides = {}) {
+  const t = { ...THRESHOLDS, ...overrides };
   const { temperature, current_a, voltage_v, smoke } = reading;
 
   if (smoke) return { level: 'danger', cause: 'smoke' };
