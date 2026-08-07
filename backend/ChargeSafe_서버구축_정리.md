@@ -851,7 +851,7 @@ Firebase 콘솔 → 프로젝트 설정(⚙️) → 일반 탭
 
 ```js
 self.FIREBASE_CONFIG = {
-  apiKey: "AIzaSyC1BLD204QHfdNhCsdE_4AL7wgL3ajgVCI",
+  apiKey: "<Firebase 콘솔에서 복사>",
   authDomain: "chargesafe-cs.firebaseapp.com",
   projectId: "chargesafe-cs",
   storageBucket: "chargesafe-cs.firebasestorage.app",
@@ -871,8 +871,7 @@ Firebase 콘솔 → 프로젝트 설정 → 클라우드 메시징 탭
 ```
 
 ```js
-self.FIREBASE_VAPID_KEY =
-  "BBbxcaWCmlPE76IwIKuh99e9l_87rIg0mOsJ4mSZxMQamYkApLZqriTv8ovaGelwi-8mMDaTZlS1kVhyST0QT7M";
+self.FIREBASE_VAPID_KEY = "<웹 푸시 인증서 키 쌍에서 복사>";
 ```
 
 VAPID는 **브라우저가 "이 서버가 보낸 알림이 맞다"고 확인**하는 용도입니다. 없으면 토큰 발급 자체가 안 됩니다.
