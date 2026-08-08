@@ -9,6 +9,7 @@ import AppGlobalStyle from "./styles/AppGlobalStyle";
 
 import LoginPage from "./pages/LoginPage";
 import MainPage from "./pages/MainPage";
+import SignupPage from "./pages/SignupPage";
 import SplashPage from "./pages/SplashPage";
 
 const SPLASH_DURATION = 6000;
@@ -18,6 +19,7 @@ function App() {
   const [showSplash, setShowSplash] = useState(true);
   const [isFading, setIsFading] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [authPage, setAuthPage] = useState("login");
 
   useEffect(() => {
     const fadeTimer = window.setTimeout(() => {
@@ -40,7 +42,24 @@ function App() {
 
   const handleLogout = () => {
     window.localStorage.removeItem("accessToken");
+
     setIsLoggedIn(false);
+    setAuthPage("login");
+  };
+
+  const handleOpenSignup = () => {
+    setAuthPage("signup");
+  };
+
+  const handleBackToLogin = () => {
+    setAuthPage("login");
+  };
+
+  const handleSignupNext = (signupData) => {
+    console.log(
+      "회원가입 1단계 정보:",
+      signupData
+    );
   };
 
   const renderContent = () => {
@@ -52,11 +71,20 @@ function App() {
       );
     }
 
-    if (!isLoggedIn) {
+    if (isLoggedIn) {
       return (
         <PageWrapper>
-          <LoginPage
-            onLoginSuccess={handleLoginSuccess}
+          <MainPage onLogout={handleLogout} />
+        </PageWrapper>
+      );
+    }
+
+    if (authPage === "signup") {
+      return (
+        <PageWrapper>
+          <SignupPage
+            onBackToLogin={handleBackToLogin}
+            onSignupNext={handleSignupNext}
           />
         </PageWrapper>
       );
@@ -64,7 +92,10 @@ function App() {
 
     return (
       <PageWrapper>
-        <MainPage onLogout={handleLogout} />
+        <LoginPage
+          onLoginSuccess={handleLoginSuccess}
+          onSignupClick={handleOpenSignup}
+        />
       </PageWrapper>
     );
   };
@@ -106,13 +137,15 @@ const SplashWrapper = styled.div`
   ${({ $isFading }) =>
     $isFading &&
     css`
-      animation: ${fadeOut} ${FADE_DURATION}ms ease
-        forwards;
+      animation: ${fadeOut}
+        ${FADE_DURATION}ms ease forwards;
     `}
 `;
 
 const PageWrapper = styled.div`
   width: 100%;
   min-height: 100vh;
-  animation: ${fadeIn} ${FADE_DURATION}ms ease forwards;
+
+  animation: ${fadeIn}
+    ${FADE_DURATION}ms ease forwards;
 `;

@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import LoginInput from "./LoginInput";
 
-const LoginForm = ({ onLoginSuccess }) => {
+const LoginForm = ({ onLoginSuccess, onSignupClick }) => {
   const [formData, setFormData] = useState({
     userId: "",
     password: "",
@@ -111,7 +111,9 @@ const LoginForm = ({ onLoginSuccess }) => {
         <Divider />
         <MenuButton type="button">비밀번호 재설정</MenuButton>
         <Divider />
-        <SignupButton type="button">회원가입</SignupButton>
+        <SignupButton type="button" onClick={onSignupClick}>
+          회원가입
+        </SignupButton>
       </LinkMenu>
     </FormContainer>
   );

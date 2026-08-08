@@ -2,13 +2,19 @@ import styled from "styled-components";
 import BrandPanel from "../components/login/BrandPanel";
 import LoginForm from "../components/login/LoginForm";
 
-const LoginPage = ({ onLoginSuccess }) => {
+const LoginPage = ({
+  onLoginSuccess,
+  onSignupClick,
+}) => {
   return (
     <PageContainer>
       <BrandPanel />
 
       <FormSection>
-        <LoginForm onLoginSuccess={onLoginSuccess} />
+        <LoginForm
+          onLoginSuccess={onLoginSuccess}
+          onSignupClick={onSignupClick}
+        />
       </FormSection>
     </PageContainer>
   );
