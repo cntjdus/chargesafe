@@ -1,12 +1,59 @@
+import { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
 import { Bell, LogOut, UserRound } from "lucide-react";
+
+import NotificationDropdown from "../notification/NotificationDropdown";
 
 const DashboardHeader = ({
   title = "대시보드",
   showLiveText = false,
   user,
+  notifications = [],
   onLogout,
+  onProfileClick,
+  onReadNotification,
+  onReadAllNotifications,
+  onOpenNotificationCenter,
 }) => {
+  const [isNotificationOpen, setIsNotificationOpen] =
+    useState(false);
+
+  const notificationRef = useRef(null);
+
+  const unreadCount = notifications.filter(
+    (notification) => !notification.isRead
+  ).length;
+
+  useEffect(() => {
+    const handleOutsideClick = (event) => {
+      if (
+        notificationRef.current &&
+        !notificationRef.current.contains(event.target)
+      ) {
+        setIsNotificationOpen(false);
+      }
+    };
+
+    if (isNotificationOpen) {
+      document.addEventListener(
+        "mousedown",
+        handleOutsideClick
+      );
+    }
+
+    return () => {
+      document.removeEventListener(
+        "mousedown",
+        handleOutsideClick
+      );
+    };
+  }, [isNotificationOpen]);
+
+  const handleOpenNotificationCenter = () => {
+    setIsNotificationOpen(false);
+    onOpenNotificationCenter?.();
+  };
+
   return (
     <HeaderContainer>
       <TitleArea>
@@ -21,14 +68,44 @@ const DashboardHeader = ({
       </TitleArea>
 
       <HeaderActions>
-        <IconButton type="button" aria-label="알림">
-          <Bell size={18} />
-          <RedDot />
-        </IconButton>
+        <NotificationWrapper ref={notificationRef}>
+          <IconButton
+            type="button"
+            aria-label="알림"
+            $isOpen={isNotificationOpen}
+            onClick={() =>
+              setIsNotificationOpen(
+                (previous) => !previous
+              )
+            }
+          >
+            <Bell size={18} />
 
-        <ProfileButton type="button">
+            {unreadCount > 0 && <RedDot />}
+          </IconButton>
+
+          {isNotificationOpen && (
+            <NotificationDropdown
+              notifications={notifications}
+              onRead={onReadNotification}
+              onReadAll={onReadAllNotifications}
+              onOpenNotificationCenter={
+                handleOpenNotificationCenter
+              }
+            />
+          )}
+        </NotificationWrapper>
+
+        <ProfileButton
+          type="button"
+          onClick={onProfileClick}
+          aria-label="설정 페이지로 이동"
+        >
           <ProfileIcon>
-            <UserRound size={18} />
+            <UserRound
+              size={20}
+              strokeWidth={1.8}
+            />
           </ProfileIcon>
 
           <ProfileText>
@@ -55,14 +132,20 @@ const HeaderContainer = styled.header`
   position: sticky;
   top: 0;
   z-index: 50;
+
   display: flex;
   align-items: center;
   justify-content: space-between;
+
   width: 100%;
   height: 56px;
   padding: 0 22px;
-  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+
+  border-bottom: 1px solid
+    ${({ theme }) => theme.colors.border};
+
   background: var(--app-header-background);
+
   transition: background 0.25s ease;
 `;
 
@@ -93,10 +176,15 @@ const HeaderActions = styled.div`
   gap: 8px;
 `;
 
+const NotificationWrapper = styled.div`
+  position: relative;
+`;
+
 const BaseButton = styled.button`
   border: 1px solid transparent;
   background: #f8faff;
   cursor: pointer;
+
   transition:
     border-color 0.2s ease,
     color 0.2s ease,
@@ -110,18 +198,32 @@ const BaseButton = styled.button`
 
 const IconButton = styled(BaseButton)`
   position: relative;
+
   display: flex;
   align-items: center;
   justify-content: center;
+
   width: 39px;
   height: 39px;
+
   border-radius: 50%;
-  color: #6f7c94;
+
+  color: ${({ $isOpen, theme }) =>
+    $isOpen ? theme.colors.primary : "#6f7c94"};
+
+  border-color: ${({ $isOpen }) =>
+    $isOpen ? "#dce3ff" : "transparent"};
+
+  background: ${({ $isOpen, theme }) =>
+    $isOpen
+      ? theme.colors.primaryLight
+      : "#f8faff"};
 
   &:hover {
     color: ${({ theme }) => theme.colors.primary};
     border-color: #dce3ff;
-    background: ${({ theme }) => theme.colors.primaryLight};
+    background: ${({ theme }) =>
+      theme.colors.primaryLight};
   }
 `;
 
@@ -129,10 +231,13 @@ const RedDot = styled.span`
   position: absolute;
   top: 7px;
   right: 7px;
+
   width: 7px;
   height: 7px;
+
   border: 1.5px solid #ffffff;
   border-radius: 50%;
+
   background: ${({ theme }) => theme.colors.red};
 `;
 
@@ -140,14 +245,18 @@ const ProfileButton = styled(BaseButton)`
   display: flex;
   align-items: center;
   gap: 10px;
+
   min-width: 102px;
   height: 43px;
+
   padding: 0 13px 0 7px;
+
   border-radius: 24px;
 
   &:hover {
     border-color: #dce3ff;
-    background: ${({ theme }) => theme.colors.primaryLight};
+    background: ${({ theme }) =>
+      theme.colors.primaryLight};
   }
 `;
 
@@ -155,9 +264,12 @@ const ProfileIcon = styled.span`
   display: flex;
   align-items: center;
   justify-content: center;
+
   width: 33px;
   height: 33px;
+
   border-radius: 50%;
+
   color: ${({ theme }) => theme.colors.primary};
   background: #e8eeff;
 `;
@@ -183,14 +295,18 @@ const LogoutButton = styled(BaseButton)`
   display: flex;
   align-items: center;
   justify-content: center;
+
   width: 39px;
   height: 39px;
+
   border-radius: 50%;
+
   color: #8794ac;
 
   &:hover {
     color: ${({ theme }) => theme.colors.red};
     border-color: #f6cccc;
-    background: ${({ theme }) => theme.colors.redLight};
+    background: ${({ theme }) =>
+      theme.colors.redLight};
   }
 `;

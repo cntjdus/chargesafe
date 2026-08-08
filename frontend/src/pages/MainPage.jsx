@@ -8,6 +8,7 @@ import CallConfirmModal from "../components/emergency/CallConfirmModal";
 import EmergencyGuideModal from "../components/emergency/EmergencyGuideModal";
 import EmergencyModal from "../components/emergency/EmergencyModal";
 
+import { initialNotifications } from "../data/mockNotifications";
 import { dashboardTheme } from "../styles/dashboardTheme";
 
 import ChargingHistoryPage from "./ChargingHistoryPage";
@@ -36,13 +37,24 @@ const MOCK_COMMON_DATA = {
 
 const MainPage = ({ onLogout }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [selectedMenu, setSelectedMenu] = useState("dashboard");
+  const [selectedMenu, setSelectedMenu] =
+    useState("dashboard");
 
-  const [selectedMonitoringDevice, setSelectedMonitoringDevice] =
+  const [
+    selectedMonitoringDevice,
+    setSelectedMonitoringDevice,
+  ] = useState(null);
+
+  const [emergencyView, setEmergencyView] =
     useState(null);
 
-  const [emergencyView, setEmergencyView] = useState(null);
-  const [callPreviousView, setCallPreviousView] = useState("main");
+  const [callPreviousView, setCallPreviousView] =
+    useState("main");
+
+  // 알림 상태
+  const [notifications, setNotifications] = useState(
+    () => initialNotifications
+  );
 
   const handleToggleSidebar = () => {
     setIsCollapsed((previous) => !previous);
@@ -67,9 +79,45 @@ const MainPage = ({ onLogout }) => {
 
   const handlePhoneCall = () => {
     const phoneNumber =
-      MOCK_COMMON_DATA.guardian.phoneNumber.replaceAll("-", "");
+      MOCK_COMMON_DATA.guardian.phoneNumber.replaceAll(
+        "-",
+        ""
+      );
 
     window.location.href = `tel:${phoneNumber}`;
+  };
+
+  const handleProfileClick = () => {
+    setSelectedMenu("settings");
+  };
+
+  // 개별 알림 읽음 처리
+  const handleReadNotification = (notificationId) => {
+    setNotifications((previousNotifications) =>
+      previousNotifications.map((notification) =>
+        notification.id === notificationId
+          ? {
+              ...notification,
+              isRead: true,
+            }
+          : notification
+      )
+    );
+  };
+
+  // 모든 알림 읽음 처리
+  const handleReadAllNotifications = () => {
+    setNotifications((previousNotifications) =>
+      previousNotifications.map((notification) => ({
+        ...notification,
+        isRead: true,
+      }))
+    );
+  };
+
+  // 알림 센터 전체보기
+  const handleOpenNotificationCenter = () => {
+    setSelectedMenu("notifications");
   };
 
   const getPageTitle = () => {
@@ -115,12 +163,24 @@ const MainPage = ({ onLogout }) => {
         return <ChargingHistoryPage />;
 
       case "notifications":
-        return <NotificationCenterPage />;
+        return (
+          <NotificationCenterPage
+            notifications={notifications}
+            onReadNotification={
+              handleReadNotification
+            }
+            onReadAllNotifications={
+              handleReadAllNotifications
+            }
+          />
+        );
 
       case "devices":
         return (
           <DeviceManagementPage
-            onNavigateMonitoring={handleNavigateMonitoring}
+            onNavigateMonitoring={
+              handleNavigateMonitoring
+            }
           />
         );
 
@@ -145,17 +205,33 @@ const MainPage = ({ onLogout }) => {
           selectedMenu={selectedMenu}
           onSelectMenu={handleSelectMenu}
           deviceId={MOCK_COMMON_DATA.deviceId}
-          chargePercent={MOCK_COMMON_DATA.chargePercent}
-          chargingStatus={MOCK_COMMON_DATA.chargingStatus}
-          onEmergencyClick={handleEmergencyOpen}
+          chargePercent={
+            MOCK_COMMON_DATA.chargePercent
+          }
+          chargingStatus={
+            MOCK_COMMON_DATA.chargingStatus
+          }
         />
 
         <MainArea $isCollapsed={isCollapsed}>
           <DashboardHeader
             title={getPageTitle()}
-            showLiveText={selectedMenu === "dashboard"}
+            showLiveText={
+              selectedMenu === "dashboard"
+            }
             user={MOCK_COMMON_DATA.user}
             onLogout={onLogout}
+            onProfileClick={handleProfileClick}
+            notifications={notifications}
+            onReadNotification={
+              handleReadNotification
+            }
+            onReadAllNotifications={
+              handleReadAllNotifications
+            }
+            onOpenNotificationCenter={
+              handleOpenNotificationCenter
+            }
           />
 
           <PageContent>
@@ -166,7 +242,9 @@ const MainPage = ({ onLogout }) => {
         {emergencyView === "main" && (
           <EmergencyModal
             temperature={57}
-            onClose={() => setEmergencyView(null)}
+            onClose={() =>
+              setEmergencyView(null)
+            }
             onCheckDevice={() => {
               setSelectedMenu("devices");
               setEmergencyView(null);
@@ -195,9 +273,15 @@ const MainPage = ({ onLogout }) => {
 
         {emergencyView === "call" && (
           <CallConfirmModal
-            guardianName={MOCK_COMMON_DATA.guardian.name}
-            relation={MOCK_COMMON_DATA.guardian.relation}
-            phoneNumber={MOCK_COMMON_DATA.guardian.phoneNumber}
+            guardianName={
+              MOCK_COMMON_DATA.guardian.name
+            }
+            relation={
+              MOCK_COMMON_DATA.guardian.relation
+            }
+            phoneNumber={
+              MOCK_COMMON_DATA.guardian.phoneNumber
+            }
             onCancel={() => {
               setEmergencyView(callPreviousView);
             }}
@@ -221,9 +305,12 @@ const Layout = styled.div`
 const MainArea = styled.div`
   width: auto;
   min-height: 100vh;
+
   margin-left: ${({ $isCollapsed }) =>
     $isCollapsed ? "64px" : "214px"};
+
   background: var(--app-background);
+
   transition:
     margin-left 0.3s ease,
     background 0.25s ease;

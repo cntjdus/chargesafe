@@ -25,33 +25,37 @@ const AppGlobalStyle = createGlobalStyle`
   }
 
   html[data-app-theme="dark"] {
-    color-scheme: dark;
+  color-scheme: dark;
 
-    --app-background: #0b101a;
-    --app-header-background: #4D63F5;
-    --app-sidebar-background: #0a0e15;
+  --app-background: #0b1018;
+  --app-header-background: #0c0c0d;
+  --app-sidebar-background: #10141b;
 
-    /*
-      첨부 이미지처럼 다크 모드에서도
-      설정 카드 내부는 밝게 유지
-    */
-    --app-surface: #ffffff;
-    --app-surface-hover: #f5f7fa;
-    --app-surface-soft: #f2f5f9;
+  --app-surface: #1a1f27;
+  --app-surface-hover: #202630;
+  --app-surface-soft: #202633;
 
-    --app-text-primary: #182236;
-    --app-text-secondary: #647087;
-    --app-text-muted: #98a4b7;
+  --app-text-primary: #f5f7fb;
+  --app-text-secondary: #c7cfdd;
+  --app-text-muted: #8f9bb0;
 
-    --app-border: #dce2eb;
-    --app-divider: #edf0f4;
+  --app-border: #2b313b;
+  --app-divider: #2a3039;
 
-    --app-primary: #5877f6;
-    --app-primary-hover: #4868eb;
+  --app-primary: #536cff;
+  --app-primary-hover: #667cff;
 
-    --app-shadow: 0 4px 12px rgba(0, 0, 0, 0.22);
-    --app-shadow-hover: 0 12px 28px rgba(0, 0, 0, 0.3);
-  }
+  --app-success: #78d082;
+  --app-warning: #e4b04e;
+  --app-danger: #ef5a66;
+
+  --app-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.25),
+    0 6px 18px rgba(0, 0, 0, 0.14);
+
+  --app-shadow-hover:
+    0 10px 24px rgba(0, 0, 0, 0.3);
+}
 
   html[data-app-theme="custom"] {
     color-scheme: light;
