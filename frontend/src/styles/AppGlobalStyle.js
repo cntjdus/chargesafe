@@ -15,6 +15,8 @@ const AppGlobalStyle = createGlobalStyle`
     --app-text-secondary: #647087;
     --app-text-muted: #98a4b7;
 
+    --app-header-title: #182236;
+
     --app-border: #e1e6ee;
     --app-divider: #edf0f4;
 
@@ -30,7 +32,7 @@ const AppGlobalStyle = createGlobalStyle`
   color-scheme: dark;
 
   --app-background: #0b1018;
-  --app-header-background: #0c0c0d;
+  --app-header-background: #0b1018;
   --app-sidebar-background: #10141b;
 
   --app-surface: #1a1f27;
@@ -40,6 +42,8 @@ const AppGlobalStyle = createGlobalStyle`
   --app-text-primary: #f5f7fb;
   --app-text-secondary: #c7cfdd;
   --app-text-muted: #8f9bb0;
+
+  --app-header-title: #ffffff;
 
   --app-border: #2b313b;
   --app-divider: #2a3039;
@@ -58,7 +62,7 @@ const AppGlobalStyle = createGlobalStyle`
   --app-shadow-hover:
     0 10px 24px rgba(0, 0, 0, 0.3);
 }
-    
+
   /* 고대비 모드*/
   html[data-app-theme="custom"] {
     color-scheme: light;
@@ -74,6 +78,8 @@ const AppGlobalStyle = createGlobalStyle`
     --app-text-primary: #0f1728;
     --app-text-secondary: #3c485e;
     --app-text-muted: #69768c;
+
+    --app-header-title: #0f1728;
 
     --app-border: #cfd5df;
     --app-divider: #dde2e9;

@@ -156,7 +156,7 @@ const TitleArea = styled.div`
 `;
 
 const Title = styled.h2`
-  color: ${({ theme }) => theme.colors.text};
+  color: var(--app-header-title);
   font-size: 19px;
   font-weight: 850;
 `;
