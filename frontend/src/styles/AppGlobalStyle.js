@@ -1,5 +1,6 @@
 import { createGlobalStyle } from "styled-components";
 
+//기본모드
 const AppGlobalStyle = createGlobalStyle`
   :root {
     --app-background: #f3f6fb;
@@ -24,6 +25,7 @@ const AppGlobalStyle = createGlobalStyle`
     --app-shadow-hover: 0 9px 22px rgba(37, 52, 86, 0.1);
   }
 
+  /* 다크모드 */
   html[data-app-theme="dark"] {
   color-scheme: dark;
 
@@ -56,7 +58,8 @@ const AppGlobalStyle = createGlobalStyle`
   --app-shadow-hover:
     0 10px 24px rgba(0, 0, 0, 0.3);
 }
-
+    
+  /* 고대비 모드*/
   html[data-app-theme="custom"] {
     color-scheme: light;
 
