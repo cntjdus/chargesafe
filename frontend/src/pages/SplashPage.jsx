@@ -17,8 +17,8 @@ const SplashPage = () => {
 
         <LoadingDots>
           <Dot $delay="0s" />
+          <Dot $delay="0.1s" />
           <Dot $delay="0.2s" />
-          <Dot $delay="0.4s" />
         </LoadingDots>
       </SplashContent>
     </SplashContainer>

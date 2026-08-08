@@ -12,7 +12,7 @@ import MainPage from "./pages/MainPage";
 import SignupPage from "./pages/SignupPage";
 import SplashPage from "./pages/SplashPage";
 
-const SPLASH_DURATION = 6000;
+const SPLASH_DURATION = 3000;
 const FADE_DURATION = 500;
 
 function App() {
