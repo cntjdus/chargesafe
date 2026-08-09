@@ -43,6 +43,7 @@ Chargesafe_Backend/
     ├── .env.example              환경변수 작성 예시
     ├── README.md                 백엔드 사용 설명서
     ├── DEPLOY.md                 배포 가이드
+    ├── ChargeSafe_프론트엔드_연동_가이드.md   프론트엔드 담당용 연동 절차
     ├── firebase-service-account.json  FCM 관리자 키 (저장소 제외)
     │
     ├── api/                      API 엔드포인트 + 인증 + 처리 로직
@@ -69,7 +70,9 @@ Chargesafe_Backend/
     │       ├── 002_push_tokens.sql       FCM 토큰 테이블
     │       ├── 003_frontend_fields.sql   아이디·즐겨찾기·펌웨어·읽음
     │       ├── 004_notification_types.sql 알림 유형·보호자 관계
-    │       └── 005_device_settings.sql   기기별 안전 설정
+    │       ├── 005_device_settings.sql   기기별 안전 설정
+    │       ├── 006_enable_rls.sql        전 테이블 RLS·anon 권한 회수
+    │       └── 007_user_settings.sql     계정별 설정·가입 유형 제약
     │
     └── notification/             보호자 알림
         ├── notification.service.js   알림 생성 + FCM 발송
@@ -205,9 +208,13 @@ ESP32 전용입니다. `X-API-Key` 헤더의 키를 **SHA-256 해시로 바꿔**
 - `publicUser()` 함수로 응답을 만들어 **비밀번호 해시가 절대 응답에 섞이지 않게** 합니다.
 - 회원가입 시 아이디만 있고 이메일이 없으면, 내부용 이메일(`아이디@local.chargesafe`)을 자동 생성합니다.
   (이메일 컬럼이 `UNIQUE NOT NULL` 이기 때문)
+- 가입 화면의 유형 선택(`signupType`)을 역할로 저장합니다. **`user` / `guardian` 만 받습니다.**
+  `admin` 을 보내도 `guardian` 이 되므로 화면에서 관리자 계정을 만들 수 없습니다.
+  DB에도 `CHECK (role IN ('user','guardian','admin'))` 제약이 걸려 있습니다.
 
-#### `me.routes.js` (68줄) — 내 정보
-`GET /api/me` 하나뿐입니다. 화면 상단바와 설정 카드가 공통으로 쓰는 정보를 한 번에 내려줍니다.
+#### `me.routes.js` — 내 정보와 설정
+
+`GET /api/me` — 화면 상단바와 설정 카드가 공통으로 쓰는 정보를 한 번에 내려줍니다.
 
 반환 내용:
 - `user` — 이름, 역할, 아이디, 이메일, 전화번호
@@ -215,7 +222,26 @@ ESP32 전용입니다. `X-API-Key` 헤더의 키를 **SHA-256 해시로 바꿔**
 - `deviceId` — 대표 기기의 시리얼 (즐겨찾기 기기 우선, 없으면 먼저 등록한 기기)
 - `chargePercent`, `chargingStatus`, `firmware`
 
-#### `devices.routes.js` (368줄) — 기기 관련 전부 (가장 큰 파일)
+`GET · PATCH /api/me/settings` — 설정 화면(SettingsPage)이 쓰는 값 전체입니다.
+
+설정 화면에는 **기기 선택 UI가 없어서** 값 하나를 계정 전체에 적용하는 형태입니다.
+그래서 두 종류를 한 응답에 합쳐 놓았습니다.
+
+| 종류 | 항목 | 저장 위치 |
+|---|---|---|
+| 계정 단위 | 푸시 알림·보호자 알림·알림음·음성 안내·큰 글씨·테마 | `user_settings` |
+| 기기 단위 | 충전 모드·냉각팬·자동 차단·온도 기준·장시간 경고 | `devices` |
+
+- **조회**는 대표 기기 값을 보여주고, **저장**은 내 기기 전체에 같은 값을 적용합니다.
+  기기마다 다르게 두려면 `PATCH /api/devices/:id` 를 씁니다.
+- 보낸 항목만 바꿉니다. 안 보낸 항목은 그대로 둡니다.
+- 기기가 없으면 응답의 `hasDevice` 가 `false` 이고 기기 값은 저장되지 않습니다.
+- `chargeMode`(`batteryProtection`/`eco`/`normal`/`full`)는 `targetPercent`(85/80/90/100)로 변환해
+  저장합니다. 프론트가 모드 id 로 다루고 DB는 숫자로 다루기 때문입니다.
+- 푸시 알림을 끈 계정은 FCM 발송 대상에서 제외되지만, **알림 센터 기록은 그대로 남습니다.**
+  껐다고 이력까지 사라지면 안 되기 때문입니다.
+
+#### `devices.routes.js` — 기기 관련 전부 (가장 큰 파일)
 
 | 메서드 | 경로 | 설명 |
 |---|---|---|
@@ -544,12 +570,17 @@ Render 배포 설정입니다. 저장소를 연결하면 이 파일을 읽어 �
 #### `README.md` / `DEPLOY.md`
 백엔드 사용 설명서와 배포 가이드입니다.
 
+#### `ChargeSafe_프론트엔드_연동_가이드.md`
+프론트엔드 담당이 보는 문서입니다. 목 데이터를 실제 API 호출로 바꾸는 절차를
+화면별 응답 형태·코드 예시와 함께 정리했습니다. 새 API(기기 검색, 보호자 공유,
+계정 복구, 펌웨어 업데이트)를 쓰는 방법도 여기 있습니다.
+
 #### `.gitignore` (저장소 루트)
 `node_modules/`, `.env`, `firebase-service-account.json`, `.claude/`, `frontend/` 를 제외합니다.
 
 ---
 
-## 5. 데이터베이스 구조 (테이블 9개)
+## 5. 데이터베이스 구조 (테이블 12개)
 
 ```
 users (보호자 계정)
@@ -557,25 +588,31 @@ users (보호자 계정)
                                             │
 devices (도킹스테이션) ─────────────────────┤
   ├─ device_status (현재 상태, 기기당 1행)   │
+  ├─ device_invites (보호자 초대 코드)       │
   └─ charging_sessions (충전 1회 = 1행)      │
         ├─ sensor_readings (센서 기록, 계속 쌓임)
         └─ risk_events (위험 발생 기록)
               └─ notifications (보호자 알림) ─┘
 users ─┘
-  └─ push_tokens (브라우저 푸시 토큰)
+  ├─ push_tokens (브라우저 푸시 토큰)
+  ├─ password_resets (비밀번호 재설정 토큰)
+  └─ user_settings (계정별 설정, 계정당 1행)
 ```
 
 | 테이블 | 역할 | 주요 컬럼 |
 |---|---|---|
 | `users` | 보호자 계정 | email, **username**, password_hash, name, phone, role |
-| `devices` | 도킹스테이션 | serial_number, api_key_hash, name, location, is_active, **firmware_version**, **target_percent**, **cutoff_temperature**, **auto_cutoff_enabled**, **cooling_fan_enabled**, **long_charge_warning_hours** |
-| `user_devices` | 보호자 ↔ 기기 연결 (N:M) | user_id, device_id, notify, **is_favorite**, **relation** |
+| `devices` | 도킹스테이션 | serial_number, api_key_hash, name, location, is_active, **firmware_version**, **firmware_update_requested**, **pairing_until**, **target_percent**, **cutoff_temperature**, **auto_cutoff_enabled**, **cooling_fan_enabled**, **long_charge_warning_hours** |
+| `user_devices` | 보호자 ↔ 기기 연결 (N:M) | user_id, device_id, notify, **is_favorite**, **relation**, **created_at**(소유자 판별) |
 | `device_status` | 현재 상태 (기기당 1행) | is_charging, level, temperature, current_a, voltage_v, smoke, last_seen_at |
 | `charging_sessions` | 충전 1회 | started_at, ended_at, end_reason, max_temp, max_current, auto_cutoff, cutoff_cause |
 | `sensor_readings` | 센서 기록 (고빈도) | recorded_at, temperature, current_a, voltage_v, smoke, level |
 | `risk_events` | 위험 발생 기록 | level, cause, detail(JSONB), occurred_at |
 | `notifications` | 보호자 알림 | **kind**, **title**, message, status, **read_at**, **occurred_at** |
 | `push_tokens` | 푸시 토큰 | token, user_agent, last_used_at |
+| `user_settings` | 계정별 설정 (계정당 1행) | push_notifications, guardian_notifications, notification_sound, voice_guide, large_text, theme_mode |
+| `device_invites` | 보호자 초대 코드 | code(8자), device_id, relation, expires_at, used_by, used_at |
+| `password_resets` | 비밀번호 재설정 토큰 | token_hash, user_id, expires_at, used_at |
 
 **설계 포인트**
 
@@ -587,6 +624,10 @@ users ─┘
 - **모든 시각은 `TIMESTAMPTZ`** — UTC로 저장하고 화면에서 한국 시간으로 변환합니다.
 - **`gas_ppm` 컬럼** — 화면에서 가스를 쓰지 않아 코드에서는 제외했지만,
   하드웨어(MQ-2) 데이터 보존을 위해 컬럼은 남겨 두었습니다.
+- **토큰은 해시로만 저장** — `devices.api_key_hash`, `password_resets.token_hash` 모두
+  원문을 저장하지 않습니다. DB가 통째로 유출돼도 그 값으로는 인증할 수 없습니다.
+- **`user_devices.created_at` 이 소유자 기준** — 가장 먼저 참여한 보호자가 소유자이며,
+  초대 코드 발급과 다른 보호자 내보내기 권한을 가집니다.
 
 ---
 
@@ -596,13 +637,27 @@ users ─┘
 
 | 메서드 | 경로 | 설명 |
 |---|---|---|
-| POST | `/api/auth/register` | 회원가입 |
+| POST | `/api/auth/register` | 회원가입 (`signupType` = `user`/`guardian`) |
 | POST | `/api/auth/login` | 로그인 → 토큰 발급 |
+| POST | `/api/auth/find-id` | 아이디 찾기 (이름 + 전화번호) |
+| POST | `/api/auth/reset-password/request` | 비밀번호 재설정 ① 본인 확인 → 토큰 |
+| POST | `/api/auth/reset-password` | 비밀번호 재설정 ② 새 비밀번호 저장 |
 | GET | `/api/me` | 내 프로필·보호자·대표 기기 |
+| PATCH | `/api/me` | 프로필 수정 (이름·전화번호·이메일) |
+| PATCH | `/api/me/password` | 비밀번호 변경 (현재 비밀번호 확인) |
+| GET | `/api/me/settings` | 설정 화면 값 전체 |
+| PATCH | `/api/me/settings` | 설정 저장 (보낸 항목만 변경) |
 | GET | `/api/devices` | 기기 목록 |
-| POST | `/api/devices` | 기기 등록 (API 키 1회 발급) |
+| GET | `/api/devices/discoverable` | 등록 대기 중인 기기 (주변 기기 검색) |
+| POST | `/api/devices` | 기기 등록 / 미리 등록(`provisionOnly`) |
 | PATCH | `/api/devices/:id` | 기기 설정 수정 |
 | DELETE | `/api/devices/:id` | 기기 등록 해제 |
+| GET | `/api/devices/:id/members` | 함께 보는 보호자 목록 |
+| POST | `/api/devices/:id/invites` | 보호자 초대 코드 발급 (소유자만) |
+| GET · DELETE | `/api/devices/:id/invites[/:code]` | 초대 코드 목록·취소 (소유자만) |
+| POST | `/api/devices/invites/:code` | 초대 코드로 참여 |
+| PATCH · DELETE | `/api/devices/:id/members/:userId` | 보호자 관계 수정·내보내기 |
+| POST | `/api/devices/:id/firmware-update` | 펌웨어 업데이트 요청 |
 | GET | `/api/devices/:id/dashboard` | 대시보드 전체 |
 | GET | `/api/devices/:id/history` | 충전 이력 + 요약 |
 | GET | `/api/devices/:id/monitoring` | 모니터링 그래프 (`?range=realtime\|hour\|today\|week`) |
@@ -719,44 +774,140 @@ node database/seed-demo.js 1     # 1 = 기기 id
 
 ### 완료
 
-- PostgreSQL(Supabase) 스키마 9개 테이블, 마이그레이션 5개
+- PostgreSQL(Supabase) 스키마 12개 테이블, 마이그레이션 8개
 - 보호자 인증(JWT) / 기기 인증(API 키) / CORS
 - 센서 수신 → 위험 판단 → 저장 → 차단 → 알림 전체 흐름
 - 대시보드·모니터링·충전이력·알림센터·기기관리·설정 6개 화면용 API
-- 기기별 안전·충전 설정 저장 및 위험 판단 반영
-- FCM 푸시 알림 (실제 수신·클릭 이동까지 검증 완료)
+- 기기별 안전·충전 설정 + 계정별 설정 저장, 위험 판단에 즉시 반영
+- 기기 검색·페어링 / 보호자 공유(초대 코드) / 계정 복구 / 펌웨어 업데이트 지시
 - Render 배포 (`https://chargesafe-zc39.onrender.com`)
 
 ### 남은 작업
 
+- **배포 반영** — DB 마이그레이션은 Supabase에 적용을 마쳤지만, 새 코드(`/api/me/settings`,
+  기기 검색·보호자 공유·계정 복구 등)는 아직 커밋·푸시 전입니다.
+  Render에 올라간 서버는 이전 버전으로 동작합니다.
 - **ESP32 펌웨어 연동** — 실제 센서에서 `POST /api/ingest/readings` 호출
-  (현재는 테스트 데이터로만 검증된 상태)
+  (현재는 테스트 데이터로만 검증된 상태). 응답의 `firmware.update` 처리와
+  `firmware_version` 전송도 함께 구현해야 합니다.
+- **계정 복구의 본인 확인 수단** — 메일·문자 발송 수단이 없어 이름 + 전화번호로만 확인하고
+  재설정 토큰을 응답으로 바로 돌려줍니다. 실제 서비스로 쓰려면 메일·문자 발송으로 바꿔야 합니다.
 - 센서 데이터 장기 보존 정책 (예: 30일 후 1분 평균으로 압축)
+- **FCM 푸시 발송 중단 상태** — 프론트엔드에 토큰 발급 코드가 없어 `push_tokens` 가 비어 있습니다.
+  백엔드 발송 코드는 그대로 있으며, 알림 센터 기록은 정상 동작합니다.
 
 ### 프론트엔드 쪽에서 해야 할 일
 
-백엔드는 준비됐지만, 프론트엔드가 실제 서버에 붙으려면 담당자가 두 가지를 해야 합니다.
+현재 프론트엔드는 **목 데이터로만 동작**합니다. 실제 fetch 는 `src/api/monitoringApi.js`
+하나뿐이고 그마저 `USE_MOCK_DATA = true` 로 꺼져 있습니다. 순서대로 하면 됩니다.
 
-1. **목 데이터 끄기 + 주소 맞추기**
-   `src/api/monitoringApi.js` 의 `USE_MOCK_DATA` 를 `false` 로 바꿉니다.
-   API 기본 주소가 `http://localhost:8000` 인데 백엔드도 8000으로 맞춰 두었으므로 그대로 동작합니다.
-   (다른 포트를 쓰려면 프론트엔드 `.env` 에 `VITE_API_BASE_URL` 을 지정하면 됩니다.)
+> **작업 절차와 화면별 코드 예시는 `ChargeSafe_프론트엔드_연동_가이드.md` 에 따로 정리했습니다.**
+> 프론트엔드 담당은 그 문서를 보면 되고, 여기서는 어느 화면이 어느 API 를 쓰는지만 정리합니다.
 
-2. **로그인 토큰 붙이기**
-   현재 `monitoringApi.js` 의 fetch 에는 `Authorization` 헤더가 없습니다.
+1. **로그인을 실제 호출로 교체하고 토큰 저장**
+   `LoginForm.jsx` 는 입력값을 `console.log` 한 뒤 곧바로 화면을 넘길 뿐 서버를 부르지 않습니다.
+   `App.jsx` 는 로그아웃에서 `localStorage.removeItem("accessToken")` 을 하지만 저장하는 곳이 없습니다.
+2. **모든 요청에 `Authorization: Bearer <token>` 헤더 붙이기**
    기기 데이터는 로그인한 보호자만 볼 수 있어야 하므로(다른 사람 기기가 노출되면 안 됨)
-   백엔드는 토큰을 요구합니다. 로그인 응답의 토큰을 아래처럼 붙여야 합니다.
+   백엔드가 토큰을 요구합니다. 지금은 헤더가 없어 목 데이터를 끄면 전부 **401** 입니다.
+3. **목 데이터 끄기** — `USE_MOCK_DATA` 를 `false` 로.
+   API 기본 주소가 `http://localhost:8000` 이고 백엔드도 8000이라 로컬은 그대로 동작합니다.
+   (분리 배포 시에는 프론트 `.env` 의 `VITE_API_BASE_URL` — 빌드 시점에 값이 박힙니다.)
+4. **나머지 화면도 API 로 교체**
+   백엔드 응답은 `data/mock*.js` 의 필드명에 맞춰 두었으므로 값을 바꿔 끼우는 수준입니다.
 
-   ```js
-   headers: {
-     "Content-Type": "application/json",
-     Authorization: `Bearer ${token}`,
-   }
-   ```
+| 화면 | 엔드포인트 |
+|---|---|
+| 대시보드 | `GET /api/devices/:id/dashboard` |
+| 모니터링 | `GET /api/devices/:id/monitoring?range=` |
+| 충전 이력 | `GET /api/devices/:id/history` |
+| 알림 센터 | `GET /api/notifications`, `PATCH /:id/read`, `POST /read-all` |
+| 기기 관리 | `GET·POST /api/devices`, `PATCH·DELETE /api/devices/:id` |
+| 기기 추가 (`AddDeviceModal`) | `GET /api/devices/discoverable` → `POST /api/devices { serial_number }` |
+| 설정 | `GET·PATCH /api/me/settings` |
+| 아이디 찾기·비밀번호 재설정 | `POST /api/auth/find-id`, `POST /api/auth/reset-password[/request]` |
+| 공통(헤더·사이드바) | `GET /api/me` |
+
+**백엔드 API 는 있으나 화면이 없는 것** — 프론트에 UI 를 만들면 바로 붙습니다
+
+| 기능 | 엔드포인트 |
+|---|---|
+| 보호자 공유(초대 코드 발급·수락·구성원 관리) | `/api/devices/:id/invites`, `/api/devices/invites/:code`, `/api/devices/:id/members` |
+| 펌웨어 업데이트 실행 | `POST /api/devices/:id/firmware-update` |
+| 프로필 수정·비밀번호 변경 | `PATCH /api/me`, `PATCH /api/me/password` |
+
+> **전화번호를 먼저 받아야 합니다.** 지금 가입 화면(1단계)은 이름·아이디·비밀번호만 받습니다.
+> 아이디 찾기와 비밀번호 재설정은 전화번호로 본인을 확인하므로, 가입 2단계나 프로필 수정
+> 화면에서 `PATCH /api/me` 로 전화번호를 채우기 전에는 두 기능이 동작하지 않습니다.
+
+**백엔드가 필요 없는 것**
+
+| 화면 | 상태 |
+|---|---|
+| 긴급 전화·대응 가이드 | `tel:` 링크로 충분. 보호자 번호는 `GET /api/me` 가 내려줌 |
+| 알림음·음성 안내·큰 글씨 | 값은 `/api/me/settings` 에 저장되며, 실제 동작은 화면에서 처리 |
 
 ---
 
 ## 11. 변경 이력
+
+### 2026-08-09 — 화면에는 있는데 백엔드에 없던 기능 4가지 추가
+
+프론트엔드를 다시 훑어 대응 API 가 없는 항목을 찾아 채웠습니다. (마이그레이션 008)
+
+| # | 기능 | 설계 |
+|---|---|---|
+| ① | **기기 검색·페어링** | 브라우저는 주변 기기를 스캔할 수 없으므로, 서버가 "지금 켜져 있고 주인이 없는 기기"를 알려준다. 기기가 다시 켜지면 10분간 `GET /api/devices/discoverable` 에 노출되고, 이때 등록하면 **API 키를 새로 만들지 않고** 연결만 한다(기기에 이미 키가 심어져 있으므로) |
+| ② | **보호자 공유** | 소유자가 24시간짜리 1회용 초대 코드를 만들고, 받은 사람이 `POST /api/devices/invites/:code` 로 참여. 소유자는 `user_devices.created_at` 이 가장 이른 사람 |
+| ③ | **계정 복구** | 아이디 찾기(이름+전화번호) / 비밀번호 재설정 2단계. 토큰은 해시로만 저장하고 30분 만료·1회용. IP 기준 10분 5회 제한 |
+| ④ | **펌웨어 업데이트** | 서버가 기기에 접속할 수 없으므로 요청을 표시만 해 두고, 기기가 센서 전송 응답의 `firmware.update` 로 지시를 받아 간다. 최신 버전을 보고하면 표시가 자동 해제됨 |
+
+**함께 고친 것**
+
+- `POST /api/devices` 에 `provisionOnly` 추가 — 내 목록에 넣지 않고 API 키만 발급합니다.
+  기기를 만들 때 키를 심어 두는 용도이며, ①의 출발점입니다.
+- `PATCH /api/me`(프로필 수정)·`PATCH /api/me/password`(비밀번호 변경) 신설.
+  ③이 전화번호를 필요로 하는데 가입 화면이 전화번호를 받지 않기 때문입니다.
+- 페어링·펌웨어 처리를 `try/catch` 로 격리 — 부가 기능의 실패가 센서 수신(안전 기능)을
+  막지 않도록 했습니다. 알림 발송을 격리해 둔 것과 같은 이유입니다.
+
+**검증** — 실제 DB에 마이그레이션을 적용하고 34개 항목을 HTTP 로 확인한 뒤
+테스트 계정·기기를 모두 삭제했습니다(잔여 행 0). 페어링 시간 만료 후 등록 차단,
+연결 후 검색 목록에서 제외, 기존 API 키 유지, 초대 코드 재사용 차단, 소유자가 아닌
+보호자의 권한 차단(403), 참여 전 기기 존재 은닉(404), 재설정 토큰 재사용 차단까지 포함합니다.
+
+**남은 문제** — 계정 복구의 본인 확인이 이름 + 전화번호뿐이고 재설정 토큰을 응답으로
+바로 돌려줍니다. 메일·문자 발송 수단이 생기면 `reset-password/request` 응답에서 토큰을 빼고
+그쪽으로 보내야 합니다. 페어링도 10분 창 안에서는 같은 서버를 쓰는 다른 계정이 먼저
+가져갈 수 있으므로, 엄격하게 하려면 기기에 페어링 버튼을 두어야 합니다.
+
+### 2026-08-09 — 프론트엔드 전면 교체 대응
+
+프론트엔드가 **TypeScript + shadcn 구조에서 JavaScript + styled-components 구조로 통째로
+교체**됐습니다. `lib/api.ts`·`lib/push.ts`·`vite.config.ts`·`firebase-config.js`·
+`firebase-messaging-sw.js` 가 모두 사라지고, 실제 API 호출은 `src/api/monitoringApi.js`
+하나만 남았습니다.
+
+**다행히 응답 형태는 그대로 맞았습니다.** 백엔드 `presenters.js` 가 화면용 필드명에 맞춰
+작성돼 있었는데, 새 프론트의 `data/mock*.js` 가 같은 필드명을 그대로 계승했기 때문입니다.
+모니터링·대시보드·기기 목록·알림·이력 전부 수정 없이 붙습니다.
+
+| # | 변경 | 내용 |
+|---|---|---|
+| ① | **가입 유형 저장** | `POST /api/auth/register` 가 `signupType`(`user`/`guardian`)을 역할로 저장. `admin` 은 목록에 없어 화면에서 관리자 계정을 만들 수 없음. DB에 `users_role_check` 제약 추가 |
+| ② | **계정별 설정 API 신설** | `GET·PATCH /api/me/settings`. 마이그레이션 007 의 `user_settings` 테이블. 설정 화면에 기기 선택이 없어 계정 값과 기기 값을 한 응답으로 합침 |
+| ③ | **푸시 설정 실동작** | "푸시 알림"을 끈 계정은 FCM 발송 대상에서 제외. 알림 센터 기록은 유지 |
+| ④ | **`longChargeWarning` 호환** | 프론트는 스위치(boolean), DB는 시간(숫자). 양쪽 다 받고, 껐다 켜면 이전 시간을 복구(0이었으면 12시간) |
+
+**검증** — 실제 DB에 트랜잭션으로 적용해 20개 항목을 확인하고 전부 롤백했습니다.
+가입 유형 반영·권한 상승 차단·부분 수정 시 값 유지·잘못된 값 400·기기 전체 일괄 적용·
+기기 단위 수정의 독립성·토큰 없을 때 401 까지 통과했습니다.
+
+**해소된 이전 과제** — 옛 문서에 적혀 있던 "분리 배포를 막는 문제 2곳"(`lib/api.ts` 상대 경로,
+`vite.config.ts` 프록시 포트 3000)은 해당 파일들이 사라지면서 함께 없어졌습니다.
+새 프론트는 처음부터 `VITE_API_BASE_URL ?? "http://localhost:8000"` 절대 주소 방식입니다.
+
+**남은 문제** — 로그인이 서버를 부르지 않고 토큰도 저장하지 않습니다. 목 데이터를 끄면 전부 401 입니다.
 
 ### 2026-07-28 — 프론트엔드 재업데이트 대응
 

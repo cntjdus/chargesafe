@@ -112,6 +112,28 @@ function toDevice(row) {
     automaticCutoff: row.auto_cutoff_enabled !== false,
     coolingFan: row.cooling_fan_enabled !== false,
     longChargeWarningHours: row.long_charge_warning_hours ?? 12,
+    // 설정 화면의 스위치는 boolean 이므로 켜짐 여부도 함께 내려준다 (0 = 사용 안 함)
+    longChargeWarning: (row.long_charge_warning_hours ?? 12) > 0,
+    // 펌웨어 — 업데이트를 요청해 둔 상태면 기기가 다음 통신에서 받아 간다
+    firmwareVersion: row.firmware_version || null,
+    firmwareUpdating: Boolean(row.firmware_update_requested),
+  };
+}
+
+/** 등록 대기 중인 기기 한 대 — AddDeviceModal 의 discoverableDevices 형태.
+ *  신호 세기는 실제 전파 세기가 아니라 마지막 수신이 얼마나 최근인지로 표시한다
+ *  (서버는 전파 세기를 알 수 없다). */
+function toDiscoverable(row) {
+  const seen = row.last_seen_at ? Date.now() - new Date(row.last_seen_at).getTime() : Infinity;
+  return {
+    id: row.serial_number,
+    name: row.name || row.serial_number,
+    location: row.location || '미지정',
+    signal: seen < 60 * 1000 ? '신호 강함' : seen < 5 * 60 * 1000 ? '신호 보통' : '신호 약함',
+    battery: estimateSoc(row.voltage_v) ?? 100,
+    firmware: row.firmware_version === LATEST_FIRMWARE ? '최신' : '업데이트 필요',
+    // 이 시각이 지나면 목록에서 사라진다 (기기를 다시 켜야 한다)
+    pairingUntil: row.pairing_until,
   };
 }
 
@@ -200,6 +222,7 @@ module.exports = {
   deviceStatus,
   sensorBlock,
   toDevice,
+  toDiscoverable,
   toHistoryItem,
   toNotification,
   estimateBatteryHealth,

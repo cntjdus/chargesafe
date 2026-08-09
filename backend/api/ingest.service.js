@@ -1,6 +1,10 @@
 const { pool } = require('../database/db');
 const { assess, severity } = require('./risk.service');
+const present = require('./presenters');
 const { notifyGuardians, createNotice } = require('../notification/notification.service');
+
+/** 주인 없는 기기가 켜졌을 때 "주변 기기 검색"에 노출되는 시간 (분) */
+const PAIRING_WINDOW_MIN = 10;
 
 function toNum(value) {
   if (value == null || value === '') return null;
@@ -46,7 +50,55 @@ async function endBatteryPercent(sessionId) {
      ORDER BY recorded_at DESC LIMIT 1`,
     [sessionId]
   );
-  return rows.length ? require('./presenters').estimateSoc(rows[0].voltage_v) : null;
+  return rows.length ? present.estimateSoc(rows[0].voltage_v) : null;
+}
+
+/**
+ * 주인이 없는 기기가 (다시) 켜지면 잠시 등록 대기 상태로 만든다.
+ * 이 시간 동안만 보호자 앱의 "주변 기기 검색"(GET /api/devices/discoverable)에 나타난다.
+ *
+ * 서버는 누가 기기 앞에 있는지 알 수 없다. 대신 "전원을 껐다 켤 수 있는 사람 =
+ * 기기 앞에 있는 사람" 이라는 점을 인증 대신 쓴다. 이미 주인이 있는 기기는
+ * 조건에 걸리지 않으므로 남의 기기가 목록에 뜨는 일은 없다.
+ */
+async function openPairingWindow(deviceId) {
+  await pool.query(
+    `UPDATE devices d SET pairing_until = now() + make_interval(mins => $2)
+     WHERE d.id = $1
+       AND NOT EXISTS (SELECT 1 FROM user_devices ud WHERE ud.device_id = d.id)`,
+    [deviceId, PAIRING_WINDOW_MIN]
+  );
+}
+
+/**
+ * 기기가 알려온 펌웨어 버전을 반영한다 (body.firmware_version).
+ * 최신 버전이 되면 업데이트 요청 표시를 지운다. 반환값은 반영 후의 버전.
+ */
+async function syncFirmware(device, reported) {
+  const version = typeof reported === 'string' ? reported.trim().slice(0, 20) : '';
+  if (!version || version === device.firmware_version) {
+    return device.firmware_version;
+  }
+  // $2 를 varchar 컬럼과 text 비교에 함께 쓰므로 양쪽 다 명시적으로 캐스팅한다
+  // (안 하면 Postgres 가 파라미터 타입을 하나로 정하지 못해 42P08 이 난다)
+  await pool.query(
+    `UPDATE devices SET
+       firmware_version = $2::text,
+       firmware_update_requested =
+         CASE WHEN $2::text = $3::text THEN false ELSE firmware_update_requested END
+     WHERE id = $1`,
+    [device.id, version, present.LATEST_FIRMWARE]
+  );
+  return version;
+}
+
+/** 기기에 내려보낼 펌웨어 업데이트 지시 — 보호자가 요청했고 아직 구버전일 때만 update=true */
+function firmwareCommand(device, version) {
+  return {
+    update: Boolean(device.firmware_update_requested) && version !== present.LATEST_FIRMWARE,
+    version: present.LATEST_FIRMWARE,
+    url: process.env.FIRMWARE_UPDATE_URL || null,
+  };
 }
 
 // 온도 상승 속도 계산용: 30초 이상 지난 가장 최근 기록과 비교
@@ -137,6 +189,18 @@ async function handleReading(device, body) {
   };
 
   const reconnected = await wasOffline(device.id);
+
+  // 페어링·펌웨어는 부가 기능이므로, 실패해도 센서 수신(안전 기능)까지 막지 않도록 격리한다
+  let firmware = firmwareCommand(device, device.firmware_version);
+  try {
+    // 기기가 (다시) 켜졌다면, 주인이 없는 동안에 한해 등록 대기 상태로 만든다
+    if (reconnected) await openPairingWindow(device.id);
+    // 기기가 알려온 펌웨어 버전을 반영하고 내려보낼 업데이트 지시를 준비한다
+    firmware = firmwareCommand(device, await syncFirmware(device, body.firmware_version));
+  } catch (err) {
+    console.error('[ingest] 페어링·펌웨어 처리 실패:', err.message);
+  }
+
   let session = await getOpenSession(device.id);
 
   if (!charging) {
@@ -152,7 +216,8 @@ async function handleReading(device, body) {
       }
     }
     await upsertStatus(device.id, { ...reading, level: 'normal', is_charging: false });
-    return { level: 'normal', charging: false };
+    // 충전 중이 아닐 때가 펌웨어를 새로 올리기 좋은 시점이다
+    return { level: 'normal', charging: false, firmware };
   }
 
   if (reconnected) {
@@ -210,14 +275,16 @@ async function handleReading(device, body) {
   }
 
   // 펌웨어는 이 응답을 보고 동작을 결정한다
-  //   cutoff  — 충전을 끊어야 하는지
-  //   fan     — 냉각팬을 켜야 하는지 (주의 단계 이상 + 냉각팬 설정이 켜져 있을 때)
+  //   cutoff   — 충전을 끊어야 하는지
+  //   fan      — 냉각팬을 켜야 하는지 (주의 단계 이상 + 냉각팬 설정이 켜져 있을 때)
+  //   firmware — 업데이트 지시 (충전 중에는 update 를 받더라도 끝난 뒤에 진행할 것)
   return {
     level,
     cause,
     session_id: session.id,
     cutoff: level === 'danger' && autoCutoffOn,
     fan: device.cooling_fan_enabled !== false && severity(level) >= severity('caution'),
+    firmware,
   };
 }
 

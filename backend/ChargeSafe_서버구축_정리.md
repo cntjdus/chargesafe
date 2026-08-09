@@ -212,7 +212,7 @@ require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 ## 6. 데이터베이스
 
-### 마이그레이션 6개
+### 마이그레이션 8개
 
 | 파일 | 내용 |
 |---|---|
@@ -222,6 +222,8 @@ require('dotenv').config({ path: path.join(__dirname, '.env') });
 | `004_notification_types.sql` | 알림 4종(위험/주의/완료/정보) 분리 |
 | `005_device_settings.sql` | 기기별 안전 설정 |
 | `006_enable_rls.sql` | **보안** — RLS 적용 + anon 권한 회수 |
+| `007_user_settings.sql` | 계정별 설정(알림·접근성·테마) + 가입 유형 제약 |
+| `008_pairing_sharing_recovery.sql` | 기기 페어링, 보호자 초대, 비밀번호 재설정, 펌웨어 업데이트 표시 |
 
 ### 마이그레이션 실행기 (`database/migrate.js`)
 
@@ -237,19 +239,22 @@ require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 **여러 번 실행해도 안전합니다.** 적용 이력을 `schema_migrations`에 남기므로 이미 적용된 파일은 건너뜁니다.
 
-### 테이블 10개
+### 테이블 13개
 
 | 테이블 | 역할 |
 |---|---|
 | `users` | 보호자 계정 |
 | `devices` | 도킹스테이션 + 기기별 설정 |
-| `user_devices` | 보호자↔기기 연결 (즐겨찾기, 관계) |
+| `user_devices` | 보호자↔기기 연결 (즐겨찾기, 관계, 참여 시각) |
 | `charging_sessions` | 충전 1회 = 1행 |
 | `sensor_readings` | 5초마다 1행 (가장 빨리 쌓임) |
 | `risk_events` | 위험 단계 변화 시점 |
 | `notifications` | 알림 이력 + 읽음 상태 |
 | `device_status` | **기기당 1행** — 실시간 표시 전용 |
 | `push_tokens` | 브라우저별 FCM 토큰 |
+| `user_settings` | **계정당 1행** — 알림·접근성·테마 |
+| `device_invites` | 보호자 초대 코드 (24시간·1회용) |
+| `password_resets` | 비밀번호 재설정 토큰 (해시만 저장) |
 | `schema_migrations` | 마이그레이션 이력 |
 
 ### 설계 포인트 — `device_status`를 따로 둔 이유
@@ -814,6 +819,20 @@ pg_dump "$DATABASE_URL" > backup.sql
 
 ## 15.2 Firebase — 푸시 알림 (FCM)
 
+> ⚠️ **2026-08-09 현재, 이 장의 프론트엔드 부분은 동작하지 않습니다.**
+> 프론트엔드가 전면 교체되면서 `public/firebase-config.js`, `public/firebase-messaging-sw.js`,
+> `src/lib/push.ts` 가 모두 사라졌습니다. 브라우저가 토큰을 발급받지 않으므로 `push_tokens`
+> 테이블이 비어 있고, **푸시는 실제로 발송되지 않습니다.**
+>
+> | 구분 | 상태 |
+> |---|---|
+> | 백엔드 발송 코드 (`notification/`) | ✅ 그대로 있음 |
+> | 서비스 계정 키 설정 (15.2.5~15.2.7) | ✅ 지금도 유효 |
+> | 프론트 설정 파일·서비스 워커 (15.2.3~15.2.4) | ❌ 파일 없음 — 다시 만들어야 함 |
+> | 알림 센터 화면 (`notifications` 테이블) | ✅ 정상 동작 |
+>
+> 아래 내용은 **프론트에 FCM을 다시 넣을 때의 기준 문서**로 보시면 됩니다.
+
 ### 15.2.1 프로젝트 정보
 
 | 항목 | 값 |
@@ -861,7 +880,7 @@ self.FIREBASE_CONFIG = {
 };
 ```
 
-**이 파일을 따로 둔 이유** — 서비스 워커(`firebase-messaging-sw.js`)와 앱(`src/lib/push.ts`) **둘 다** 같은 설정이 필요합니다. 한 곳에 두고 양쪽에서 읽습니다.
+**이 파일을 따로 둔 이유** — 서비스 워커(`firebase-messaging-sw.js`)와 앱의 푸시 모듈 **둘 다** 같은 설정이 필요합니다. 한 곳에 두고 양쪽에서 읽습니다. (서비스 워커는 번들러를 거치지 않으므로 `import` 를 쓸 수 없어 `public/` 에 둡니다.)
 
 ### 15.2.4 VAPID 키
 
@@ -1238,58 +1257,46 @@ https://chargesafe-zc39.onrender.com   ← API (Render)
 ```
 브라우저가 **남의 집 요청**으로 취급하므로 CORS 허가가 반드시 필요합니다.
 
-### 15.5.2 ⚠️ 먼저 알아야 할 것 — 현재 코드로는 동작하지 않습니다
+### 15.5.2 프론트엔드 주소 설정 — 현재 상태
 
-프론트엔드 코드에 **분리 배포를 막는 부분이 2곳** 있습니다. 백엔드가 아니라 프론트엔드 담당이 고쳐야 합니다.
+> **2026-08-09 갱신.** 이전 판에는 "분리 배포를 막는 문제 2곳(`lib/api.ts` 상대 경로,
+> `vite.config.ts` 프록시 포트 3000)"이 적혀 있었습니다. 프론트엔드가 전면 교체되면서
+> **두 파일 모두 사라졌고 문제도 함께 해소**됐습니다. 아래가 현재 코드 기준입니다.
 
-#### 문제 ① — API 주소가 상대 경로입니다
+#### 지금은 절대 주소 방식입니다
 
-`frontend/src/lib/api.ts`
+`frontend/src/api/monitoringApi.js`
 
-```ts
-// 현재 — 파일 상단 주석
-// 개발 중에는 vite 프록시(/api → localhost:3000), 배포 시에는 같은 서버에서
-// 서빙되므로 상대 경로만 사용한다.
+```js
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
-const res = await fetch(path, { ... });   // path = "/api/devices"
+const response = await fetch(
+  `${API_BASE_URL}/api/devices/${deviceId}/monitoring/?${query}`, { ... });
 ```
 
-상대 경로는 **자기 자신의 도메인**을 가리킵니다. 분리 배포하면
+Vite 프록시를 쓰지 않고 처음부터 전체 주소로 호출합니다. 백엔드 기본 포트와 같은 8000이
+기본값이라 **로컬은 설정 없이 그대로 동작**합니다.
 
-```
-https://chargesafe.vercel.app/api/devices   ← 여기로 감 (404)
-https://chargesafe-zc39.onrender.com/api/devices   ← 여기로 가야 함
-```
+#### 대신 주의할 점 — 배포할 때는 `VITE_API_BASE_URL` 을 반드시 지정
 
-**필요한 수정** — 베이스 URL을 앞에 붙입니다.
+지금 `frontend/.env` 가 없으므로, 그대로 빌드하면 번들 안에 `http://localhost:8000` 이 남습니다.
 
-```ts
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
+| 배포 방식 | `VITE_API_BASE_URL` |
+|---|---|
+| 분리 배포 (Vercel + Render) | `https://chargesafe-zc39.onrender.com` |
+| 백엔드가 `dist` 를 함께 서빙 | 빈 문자열 — 같은 출처라 붙일 필요 없음 |
+| 로컬 개발 | 설정 불필요 (기본값 8000) |
 
-const res = await fetch(`${API_BASE_URL}${path}`, { ... });
-```
+이 값은 **빌드 시점에 코드로 박히므로** 바꾼 뒤에는 반드시 다시 빌드해야 합니다 (15.5.8).
 
-기본값을 빈 문자열로 두면 **같은 서버 서빙 방식도 그대로 동작**합니다. 어느 쪽이든 깨지지 않습니다.
+#### 남은 실제 문제 — 인증 헤더
 
-#### 문제 ② — Vite 프록시가 옛 포트를 봅니다
+`monitoringApi.js` 의 fetch 에는 `Authorization` 헤더가 없고, 로그인 화면도 토큰을 저장하지
+않습니다. 목 데이터를 끄는 순간 **전 요청이 401** 이 됩니다 (15.5.6).
 
-`frontend/vite.config.ts`
-
-```ts
-server: {
-  proxy: {
-    '/api': 'http://localhost:3000',   // ← 백엔드는 이제 8000
-  },
-},
-```
-
-백엔드 기본 포트를 **8000으로 바꿨으므로** 이 값도 8000이어야 합니다. 지금은 **로컬 개발에서도 연결이 안 됩니다.**
-
-```ts
-'/api': 'http://localhost:8000',
-```
-
-> 이 두 파일은 프론트엔드 소유라 백엔드에서 수정하지 않았습니다. **프론트엔드 담당에게 그대로 전달하면 되는 내용**입니다.
+> 이 파일들은 프론트엔드 소유라 백엔드에서 수정하지 않았습니다.
+> **프론트엔드 담당에게 그대로 전달하면 되는 내용**입니다.
 
 ### 15.5.3 백엔드가 할 일 — CORS 허용 한 줄
 
@@ -1365,7 +1372,7 @@ function cors(req, res, next) {
 
 즉 **요청이 2배**가 됩니다. `Access-Control-Max-Age: 86400` 을 준 이유가 이것입니다. 하루 동안 사전 요청 결과를 캐시해 두 번째부터는 ①을 생략합니다.
 
-### 15.5.6 인증 — 다행히 손댈 게 없습니다
+### 15.5.6 인증 — 백엔드는 손댈 게 없고, 프론트가 헤더를 붙여야 합니다
 
 이 백엔드는 **JWT를 `Authorization` 헤더로** 받습니다. 쿠키를 쓰지 않습니다.
 
@@ -1374,7 +1381,32 @@ function cors(req, res, next) {
 | 쿠키 세션 | `SameSite=None; Secure` 필요, 도메인 문제 복잡 |
 | **JWT 헤더** ✅ | **추가 설정 없음** |
 
-쿠키였다면 크로스 도메인 설정으로 한참 고생했을 부분입니다. 헤더 방식이라 **CORS만 열면 끝**입니다.
+쿠키였다면 크로스 도메인 설정으로 한참 고생했을 부분입니다. 헤더 방식이라 백엔드는 **CORS만 열면 끝**입니다.
+
+> ⚠️ **다만 현재 프론트엔드가 토큰을 다루지 않습니다.**
+> `LoginForm` 은 입력값을 `console.log` 한 뒤 곧바로 화면을 전환할 뿐 `POST /api/auth/login`
+> 을 부르지 않고, `App.jsx` 는 로그아웃에서 `localStorage.removeItem("accessToken")` 을 하지만
+> **저장하는 코드가 없습니다.** `monitoringApi.js` 의 fetch 에도 헤더가 없습니다.
+
+프론트에서 해야 할 일은 세 가지입니다.
+
+```js
+// ① 로그인 — 실제 호출로 교체
+const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ userId, password }),
+});
+const { token } = await res.json();
+
+// ② 저장
+localStorage.setItem("accessToken", token);
+
+// ③ 모든 요청에 첨부
+headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }
+```
+
+토큰 유효기간은 **7일**입니다(`auth.routes.js`). 만료되면 401이 오므로 로그인 화면으로 되돌리면 됩니다.
 
 ### 15.5.7 정적 호스팅 선택과 SPA 설정
 
@@ -1418,6 +1450,12 @@ Vercel에서 환경변수만 바꾸고 재배포하지 않으면 **옛 주소가
 
 ### 15.5.9 FCM 푸시 — 도메인이 프론트엔드로 바뀝니다
 
+> ⚠️ **현재 프론트엔드에는 FCM 코드가 없습니다.** 교체 과정에서 `public/firebase-config.js`,
+> `public/firebase-messaging-sw.js`, `src/lib/push.ts` 가 사라졌습니다. 그래서 `push_tokens`
+> 테이블이 비어 있고 **푸시는 실제로 발송되지 않습니다.** 위험 알림은 `notifications` 에
+> 그대로 기록되므로 알림 센터 화면은 정상입니다. 백엔드 발송 코드는 그대로 두었으니
+> 프론트에 다시 넣으면 아래 내용이 그대로 적용됩니다.
+
 푸시는 **화면이 떠 있는 도메인**을 기준으로 동작합니다. 분리하면 기준이 프론트엔드로 옮겨갑니다.
 
 | 항목 | 조치 |
@@ -1440,9 +1478,9 @@ Firebase 콘솔 → Authentication → Settings → 승인된 도메인
 
 ```
 ① 백엔드 Render 환경변수에 CORS_ORIGINS 추가 → 재배포
-② 프론트엔드 코드 수정 (15.5.2의 ①②)
+② 프론트엔드에 로그인·토큰 처리 추가 (15.5.6) + USE_MOCK_DATA = false
 ③ 정적 호스팅에 VITE_API_BASE_URL 설정하고 배포
-④ Firebase 승인 도메인에 프론트엔드 주소 추가
+④ (FCM을 다시 넣는 경우) Firebase 승인 도메인에 프론트엔드 주소 추가
 ⑤ 검증 (15.5.11)
 ```
 
@@ -1689,14 +1727,17 @@ Render가 이 값을 읽어 Node 버전을 맞춥니다. 없으면 구버전이 
 | 항목 | 상태 |
 |---|---|
 | 브랜치 | `backend` |
-| 커밋 | 11개 |
-| 작업 트리 | **깨끗함** (모두 커밋 완료) |
-| 최신 커밋 | `fix(security): public 스키마 전 테이블에 RLS 적용하고 anon 권한을 회수` |
+| 커밋 | 13개 |
+| 최신 커밋 | `docs: 문서에 적힌 Firebase 웹 설정값을 자리표시자로 교체` |
 | 배포 | 가동 중 |
+| 마이그레이션 | 8개 전부 적용 완료 (`008_pairing_sharing_recovery.sql` — 2026-08-09) |
+| 미커밋 변경 | 기기 검색·보호자 공유·계정 복구·펌웨어 업데이트 (Render 서버는 아직 이전 버전) |
 
 ## 커밋 이력
 
 ```
+b95e29e docs: 문서에 적힌 Firebase 웹 설정값을 자리표시자로 교체
+e90d59a docs: 백엔드 구조 설명서와 서버 구축 정리 문서를 추가
 ab73cee fix(security): public 스키마 전 테이블에 RLS 적용하고 anon 권한을 회수
 e86af1b feat: 프론트엔드 monitoringApi 계약에 맞춰 모니터링·기기 설정 API 추가
 59bcc9f fix: 루트 응답의 엔드포인트 목록을 실제 라우트와 일치시킴
@@ -1716,20 +1757,43 @@ f3b147b feat(backend): ChargeSafe 백엔드 API/DB 추가
 
 ### ① 프론트엔드 담당
 
-**분리 배포를 하려면 반드시 필요한 수정 2가지** (자세한 내용은 15.5.2)
+현재 프론트엔드는 **목 데이터로만 동작**합니다. 실제 fetch 는 `src/api/monitoringApi.js`
+하나뿐이고 그마저 `USE_MOCK_DATA = true` 로 꺼져 있습니다.
 
-| # | 파일 | 수정 |
+> **작업 절차·화면별 코드 예시는 `ChargeSafe_프론트엔드_연동_가이드.md` 에 따로 정리했습니다.**
+> 프론트엔드 담당은 그 문서 하나만 보면 됩니다. 여기서는 큰 순서만 적습니다.
+
+**연동에 반드시 필요한 순서** (배포 환경 관련 내용은 15.5.6)
+
+| # | 작업 | 파일 |
 |---|---|---|
-| 1 | `frontend/src/lib/api.ts` | `fetch(path)` → `fetch(`${API_BASE_URL}${path}`)` |
-| 2 | `frontend/vite.config.ts` | 프록시 `localhost:3000` → **`localhost:8000`** |
+| 1 | 로그인을 실제 `POST /api/auth/login` 호출로 교체하고 토큰 저장 | `components/login/LoginForm.jsx`, `App.jsx` |
+| 2 | 모든 요청에 `Authorization: Bearer <token>` 헤더 추가 | `api/monitoringApi.js` |
+| 3 | `USE_MOCK_DATA` 를 `false` 로 변경 | `api/monitoringApi.js` |
+| 4 | 나머지 화면(대시보드·기기·알림·이력·설정)도 목 데이터 대신 API 호출로 교체 | `pages/*`, `data/mock*.js` |
 
-②는 **분리 배포와 무관하게 지금 당장 필요한 수정**입니다. 백엔드 포트를 8000으로 바꿨기 때문에 현재 로컬 개발에서도 API가 붙지 않습니다.
+1~2를 건너뛰고 3만 하면 **전 요청이 401** 이 납니다.
+백엔드 응답은 `data/mock*.js` 의 필드명에 맞춰 두었으므로 4는 값을 바꿔 끼우는 수준입니다.
 
 **그 외**
 
-- `VITE_API_BASE_URL` 을 백엔드 주소로 설정 (분리 배포 시)
-- API 호출에 `Authorization: Bearer <token>` 헤더 추가
-  → `api.ts`에는 이미 들어 있으나, 별도 버전의 `monitoringApi.js`를 쓰는 경우 없어서 **401**이 납니다
+- 분리 배포 시 `VITE_API_BASE_URL` 을 백엔드 주소로 설정 (빌드 시점에 박힘 — 15.5.8)
+- 회원가입 2단계 화면이 아직 없습니다 (`onSignupNext` 가 `console.log` 만 함)
+- FCM 을 다시 쓰려면 `public/firebase-config.js`·`firebase-messaging-sw.js`·토큰 등록 코드가 필요합니다 (15.2)
+
+**백엔드는 준비됐고 화면만 붙이면 되는 것** (2026-08-09 추가, 마이그레이션 008)
+
+| 기능 | 엔드포인트 |
+|---|---|
+| 주변 기기 검색 (`AddDeviceModal`) | `GET /api/devices/discoverable` → `POST /api/devices { serial_number }` |
+| 보호자 공유·초대 | `POST /api/devices/:id/invites` → `POST /api/devices/invites/:code` |
+| 아이디 찾기·비밀번호 재설정 | `POST /api/auth/find-id`, `POST /api/auth/reset-password[/request]` |
+| 펌웨어 업데이트 실행 | `POST /api/devices/:id/firmware-update` |
+| 프로필 수정·비밀번호 변경 | `PATCH /api/me`, `PATCH /api/me/password` |
+
+> 아이디 찾기·비밀번호 재설정은 **전화번호로 본인을 확인**합니다. 지금 가입 화면은
+> 전화번호를 받지 않으므로, 가입 2단계나 프로필 화면에서 `PATCH /api/me` 로 채워야
+> 두 기능이 동작합니다.
 
 ### ② 하드웨어 담당
 
@@ -1749,6 +1813,7 @@ f3b147b feat(backend): ChargeSafe 백엔드 API/DB 추가
 | 문서 | 위치 |
 |---|---|
 | 백엔드 구조 설명서 | `26-1 캡스톤디자인\ChargeSafe_백엔드_구조_설명서.md` |
+| **프론트엔드 연동 가이드** | `Chargesafe_Backend\backend\ChargeSafe_프론트엔드_연동_가이드.md` |
 | ESP32 연결 가이드 | `26-1 캡스톤디자인\ChargeSafe_ESP32_펌웨어\ESP32_연결_가이드.md` |
 | ESP32 펌웨어 | `26-1 캡스톤디자인\ChargeSafe_ESP32_펌웨어\chargesafe_esp32\chargesafe_esp32.ino` |
 | 배포 가이드 | `Chargesafe_Backend\backend\DEPLOY.md` |
