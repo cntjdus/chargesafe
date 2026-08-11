@@ -70,10 +70,15 @@ async function notifyGuardians(eventId, deviceId, level, cause) {
     return;
   }
 
-  // 3) 보호자들의 푸시 토큰으로 발송
+  // 3) 보호자들의 푸시 토큰으로 발송.
+  //    설정 화면에서 "푸시 알림"을 끈 계정은 제외한다 (알림 센터 기록은 위에서 이미 남겼다).
+  //    user_settings 행이 없는 계정은 기본값 true 로 본다.
   const userIds = guardians.map((g) => g.user_id);
   const { rows: tokenRows } = await pool.query(
-    'SELECT user_id, token FROM push_tokens WHERE user_id = ANY($1)',
+    `SELECT p.user_id, p.token
+     FROM push_tokens p
+     LEFT JOIN user_settings s ON s.user_id = p.user_id
+     WHERE p.user_id = ANY($1) AND COALESCE(s.push_notifications, true)`,
     [userIds]
   );
 
