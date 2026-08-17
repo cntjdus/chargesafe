@@ -1,0 +1,14 @@
+# 실제 비밀값 — 절대 올리지 않는다
+# (템플릿인 secrets.h.example 은 이름이 달라 정상적으로 올라간다)
+secrets.h
+
+# 빌드 산출물
+build/
+*.bin
+*.elf
+*.map
+
+# 편집기 / OS
+.vscode/
+.DS_Store
+Thumbs.db
