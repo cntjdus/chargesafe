@@ -13,9 +13,6 @@
 
 **EngiNEAR**
 
-> Engineering + Near  
-> 사용자 가까이에 있는 안전한 기술을 만드는 팀
-
 <br/>
 
 ## Project Overview
