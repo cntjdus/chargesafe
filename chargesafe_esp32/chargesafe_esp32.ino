@@ -18,6 +18,8 @@
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
+#include <OneWire.h>
+#include <DallasTemperature.h>
 #include "secrets.h"
 
 // ══════════════════════════════════════════════════════════
@@ -43,7 +45,7 @@ const char* API_KEY = SECRET_API_KEY;
 const unsigned long SEND_INTERVAL_MS = 5000;
 
 // ── 핀 번호 (실제 배선에 맞게 수정) ──
-const int PIN_TEMP    = 34;   // 온도 센서 (아날로그)
+const int PIN_TEMP    = 4;    // 온도 센서 DS18B20 (1-Wire 디지털 · 4.7kΩ 풀업 필요)
 const int PIN_CURRENT = 35;   // 전류 센서 ACS712 (아날로그)
 const int PIN_VOLTAGE = 32;   // 전압 분배 회로 (아날로그)
 const int PIN_SMOKE   = 33;   // MQ-2 연기 감지 (디지털 DO)
@@ -62,19 +64,57 @@ const float CHARGING_CURRENT_MIN = 0.1; // 이 이상 흐르면 "충전 중"으�
 //  ② 아래부터는 그대로 두어도 동작합니다
 // ══════════════════════════════════════════════════════════
 
+OneWire oneWire(PIN_TEMP);
+DallasTemperature tempSensor(&oneWire);
+
 unsigned long lastSendAt = 0;
 bool chargingAllowed = true;    // 릴레이 상태
 String serverLevel = "normal";  // 서버가 판단한 단계
+
+// ── DS18B20 상태 ──
+// 변환에 시간이 걸리므로(11비트 기준 약 375ms) 요청과 읽기를 분리한다.
+// 매 루프에서 기다리면 "즉시 차단"이 그만큼 늦어지기 때문이다.
+const unsigned long TEMP_CONVERSION_MS = 400;
+unsigned long lastTempRequestAt = 0;
+float lastTemp = NAN;           // 마지막으로 성공한 값
+int tempFailCount = 0;          // 연속 실패 횟수
 
 // ── 센서 읽기 ────────────────────────────────────────────
 // ※ 실제 사용하는 센서에 맞게 이 함수들의 계산식을 바꾸세요.
 //    ESP32의 analogRead()는 0~4095 (12비트), 기준 전압 약 3.3V 입니다.
 
 float readTemperature() {
-  // 예시: LM35 (10mV/℃). DS18B20을 쓴다면 DallasTemperature 라이브러리로 교체하세요.
-  int raw = analogRead(PIN_TEMP);
-  float volts = raw * (3.3 / 4095.0);
-  return volts * 100.0;   // LM35: 1V = 100℃
+  // 아직 변환이 안 끝났으면 직전 값을 그대로 쓴다
+  if (millis() - lastTempRequestAt < TEMP_CONVERSION_MS) {
+    return lastTemp;
+  }
+
+  float celsius = tempSensor.getTempCByIndex(0);
+
+  // DS18B20 의 두 가지 오류값을 걸러낸다
+  //   -127.0 : 센서를 찾지 못함 (배선 끊김 · 풀업 저항 없음)
+  //     85.0 : 전원 리셋 직후 변환이 끝나지 않았을 때의 기본값
+  // 85℃ 는 실제 온도로도 나올 수 있지만, 위험 기준이 50℃ 이므로
+  // 그 전에 이미 차단되었어야 한다. 따라서 오류로 보는 편이 안전하다.
+  bool valid = (celsius != DEVICE_DISCONNECTED_C)
+            && (celsius != 85.0f)
+            && (celsius > -55.0f)
+            && (celsius < 125.0f);
+
+  if (valid) {
+    lastTemp = celsius;
+    tempFailCount = 0;
+  } else {
+    tempFailCount++;
+    // 한두 번 튀는 건 무시하고, 세 번 연속 실패해야 고장으로 본다
+    if (tempFailCount >= 3) lastTemp = NAN;
+  }
+
+  // 다음 변환을 미리 걸어 둔다 (논블로킹)
+  tempSensor.requestTemperatures();
+  lastTempRequestAt = millis();
+
+  return lastTemp;
 }
 
 float readCurrent() {
@@ -223,6 +263,19 @@ void setup() {
   digitalWrite(PIN_RELAY, HIGH);   // 기본: 충전 허용
   digitalWrite(PIN_FAN, LOW);
 
+  // ── DS18B20 시작 ──
+  tempSensor.begin();
+  Serial.printf("DS18B20 %d개 발견\n", tempSensor.getDeviceCount());
+
+  tempSensor.setResolution(11);            // 0.125℃ · 변환 375ms
+  tempSensor.setWaitForConversion(true);   // 첫 값만 기다렸다 읽는다
+  tempSensor.requestTemperatures();
+  lastTemp = tempSensor.getTempCByIndex(0);
+
+  tempSensor.setWaitForConversion(false);  // 이후로는 논블로킹
+  tempSensor.requestTemperatures();
+  lastTempRequestAt = millis();
+
   connectWiFi();
 }
 
@@ -233,10 +286,13 @@ void loop() {
   float voltage = readVoltage();
   bool  smoke   = readSmoke();
   bool  charging = (current > CHARGING_CURRENT_MIN);
+  bool  tempFault = isnan(temp);   // 센서 고장 (3회 연속 실패)
 
   // ② 자체 안전 판단 — 네트워크와 무관하게 "즉시" 동작한다.
   //    서버 응답을 기다리다 늦으면 안 되는 부분이므로 여기서 먼저 처리합니다.
-  bool localDanger = smoke || (temp >= LOCAL_TEMP_DANGER) || (current >= LOCAL_CURRENT_MAX);
+  //    온도 센서가 고장 나면 과열을 감지할 수 없으므로 위험으로 본다.
+  bool localDanger = smoke || tempFault
+                  || (temp >= LOCAL_TEMP_DANGER) || (current >= LOCAL_CURRENT_MAX);
   if (localDanger) {
     applyOutputs(true, true, "danger");   // 즉시 차단 + 팬 가동 + 경고
     Serial.println("[안전] 자체 판단으로 충전 차단!");
