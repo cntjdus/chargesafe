@@ -1,4 +1,4 @@
-2026 다학제 가전IOT 캡스톤 디자인 경진대회 - EngiNEAR
+2026 다학제 가전IOT 캡스톤 디자인 경진대회 - team. EngiNEAR
 
 # ChargeSafe
 
@@ -12,6 +12,15 @@
 ## Team
 
 **EngiNEAR**
+
+### Members
+
+| Name | Role | 
+|---|---| 
+| 추서연 | 프론트엔드 | 
+| 김동경 | 백엔드 |
+| 박산하 | 회로 | 
+| 김민구 | 회로 | 
 
 <br/>
 
