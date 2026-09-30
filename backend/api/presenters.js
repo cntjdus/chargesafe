@@ -92,7 +92,7 @@ function sensorBlock(value, unit, { max, warn, danger, decimals = 1 }) {
 }
 
 /** 기기 목록 한 행 — DeviceRow 가 쓰는 필드 그대로.
- *  센서 원본값(온도·전류·전압·가스·연기)은 이 목록에서 쓰지 않으므로 넣지 않는다.
+ *  센서 원본값(온도·전류·전압·연기)은 이 목록에서 쓰지 않으므로 넣지 않는다.
  *  필요하면 /api/devices/:id/status 또는 /dashboard 로 조회한다. */
 function toDevice(row) {
   return {
