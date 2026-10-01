@@ -200,7 +200,7 @@ CORS 는 이미 열려 있습니다 (`api/cors.js` 기본 허용 목록에 Vite 
 | `name`, `location` | 문자열 | 기기 이름·설치 위치 |
 | `isFavorite` | true/false | 즐겨찾기 (목록 상단 고정) |
 | `targetPercent` | 50~100 | 충전 모드의 목표 충전량 |
-| `cutoffTemperature` | 40~65 | 온도 차단 기준 (위험 판단에 즉시 반영) |
+| `cutoffTemperature` | 35~65 | 온도 차단 기준 (위험 판단에 즉시 반영, 35는 시연용) |
 | `automaticCutoff` | true/false | 끄면 위험이어도 강제 차단하지 않음 |
 | `coolingFan` | true/false | 주의 단계 이상에서 냉각팬 작동 여부 |
 | `longChargeWarningHours` | 0~48 | 장시간 충전 경고 기준 (0이면 사용 안 함) |
@@ -220,7 +220,7 @@ CORS 는 이미 열려 있습니다 (`api/cors.js` 기본 허용 목록에 Vite 
 | `chargeMode` | **내 기기 전체** | `batteryProtection`(85) / `eco`(80) / `normal`(90) / `full`(100) |
 | `targetPercent` | **내 기기 전체** | `chargeMode` 대신 숫자로 직접 지정 |
 | `coolingFan`, `automaticCutoff` | **내 기기 전체** | |
-| `cutoffTemperature` | **내 기기 전체** | 40~65 |
+| `cutoffTemperature` | **내 기기 전체** | 35~65 |
 | `longChargeWarning` / `longChargeWarningHours` | **내 기기 전체** | |
 
 - 조회 시 기기 값은 **대표 기기**(즐겨찾기 우선, 없으면 먼저 등록한 기기) 기준입니다.

@@ -287,8 +287,9 @@ router.patch('/:deviceId', requireDeviceAccess, async (req, res) => {
   if (target !== undefined && (!Number.isFinite(target) || target < 50 || target > 100)) {
     return res.status(400).json({ error: 'targetPercent must be between 50 and 100' });
   }
-  if (cutoffTemp !== undefined && (!Number.isFinite(cutoffTemp) || cutoffTemp < 40 || cutoffTemp > 65)) {
-    return res.status(400).json({ error: 'cutoffTemperature must be between 40 and 65' });
+  // 35℃ 는 시연용 (마이그레이션 011)
+  if (cutoffTemp !== undefined && (!Number.isFinite(cutoffTemp) || cutoffTemp < 35 || cutoffTemp > 65)) {
+    return res.status(400).json({ error: 'cutoffTemperature must be between 35 and 65' });
   }
   if (longWarn !== undefined && (!Number.isFinite(longWarn) || longWarn < 0 || longWarn > 48)) {
     return res.status(400).json({ error: 'longChargeWarningHours must be between 0 and 48' });

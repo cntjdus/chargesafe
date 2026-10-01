@@ -306,7 +306,7 @@ ESP32 전용입니다. `X-API-Key` 헤더의 키를 **SHA-256 해시로 바꿔**
    | 필드 | 범위 | 설명 |
    |---|---|---|
    | `targetPercent` | 50~100 | 충전 모드의 목표 충전량 |
-   | `cutoffTemperature` | 40~65 | 온도 차단 기준 |
+   | `cutoffTemperature` | 35~65 | 온도 차단 기준 (35는 시연용) |
    | `automaticCutoff` | true/false | 끄면 위험이어도 강제 차단 안 함 |
    | `coolingFan` | true/false | 주의 단계 이상에서 냉각팬 작동 |
    | `longChargeWarningHours` | 0~48 | 장시간 충전 경고 기준 (0이면 사용 안 함) |
@@ -502,7 +502,7 @@ PostgreSQL 연결 풀(`pg.Pool`)을 만들어 앱 전체에서 공유합니다.
 설정 화면의 값을 기기마다 저장할 수 있게 `devices` 에 컬럼 4개를 추가합니다.
 전에는 `.env` 전역값이라 기기별로 다르게 둘 수 없었습니다.
 
-- `cutoff_temperature` — 온도 차단 기준 (40~65, 기본 50)
+- `cutoff_temperature` — 온도 차단 기준 (35~65, 기본 50 · 마이그레이션 011 에서 하한을 40→35 로 낮춤)
 - `auto_cutoff_enabled` — 자동 차단 사용 여부 (기본 true)
 - `cooling_fan_enabled` — 냉각팬 자동 작동 (기본 true)
 - `long_charge_warning_hours` — 장시간 충전 경고 기준 (0~48, 기본 12)

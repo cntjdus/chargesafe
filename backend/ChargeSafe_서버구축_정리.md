@@ -368,7 +368,7 @@ const { rows } = await pool.query(
 | `location` | 설치 위치 |
 | `isFavorite` | 즐겨찾기 |
 | `targetPercent` | 50 ~ 100 |
-| `cutoffTemperature` | 40 ~ 65 |
+| `cutoffTemperature` | 35 ~ 65 |
 | `automaticCutoff` | true/false |
 | `coolingFan` | true/false |
 | `longChargeWarningHours` | 0 ~ 48 (0이면 사용 안 함) |
