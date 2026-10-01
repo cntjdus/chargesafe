@@ -17,6 +17,7 @@ const TITLES = {
 const CAUSE_TITLES = {
   smoke: '연기 감지',
   overheat: '배터리 온도 초과',
+  overcurrent: '충전 전류 초과',
   temp_current_anomaly: '온도·전류 이상 감지',
   temp_voltage_anomaly: '온도·전압 이상 감지',
   temp_rise: '온도 급상승 감지',

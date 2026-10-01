@@ -315,6 +315,7 @@ const data = await getDashboard(deviceId);
 
 ```jsonc
 { "deviceId": "CS-0042", "range": "realtime", "updatedAt": "...",
+  "limits": { "temperature": 50, "current": 4, "voltage": 14.5 },   // 카드 기준선 (기기 설정·서버 환경변수 반영)
   "measurements": [{ "timestamp": "...", "label": "14:03", "temperature": 31.2, "current": 1.2, "voltage": 12.4 }] }
 ```
 

@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const { pool } = require('../database/db');
 const userAuth = require('./userAuth');
 const present = require('./presenters');
+const { displayLimits } = require('./risk.service');
 
 const router = express.Router();
 router.use(userAuth);
@@ -572,10 +573,22 @@ router.get('/:deviceId/monitoring', requireDeviceAccess, async (req, res) => {
     voltage: r.voltage === null ? null : Number(Number(r.voltage).toFixed(2)),
   }));
 
+  // 카드의 "기준 ○○ 미만" 표시와 정상/주의 판정에 쓰는 위험 기준 (기기별 온도 차단 기준 반영)
+  const { rows: setting } = await pool.query(
+    'SELECT cutoff_temperature FROM devices WHERE id = $1',
+    [req.deviceId]
+  );
+  const limits = displayLimits(setting[0]?.cutoff_temperature);
+
   res.json({
     deviceId: req.deviceSerial,
     range,
     updatedAt: new Date().toISOString(),
+    limits: {
+      temperature: limits.temperature.danger,
+      current: limits.current.danger,
+      voltage: limits.voltage.danger,
+    },
     measurements,
   });
 });
@@ -654,6 +667,7 @@ router.get('/:deviceId/dashboard', requireDeviceAccess, async (req, res) => {
   }));
   const batteryHealth = present.estimateBatteryHealth(samples, targetPercent);
   const aiConfidence = present.recommendationConfidence(samples.length);
+  const limits = displayLimits(device.cutoff_temperature);
 
   res.json({
     chargingStatus: device.is_charging ? '충전 중' : '대기 중',
@@ -665,9 +679,9 @@ router.get('/:deviceId/dashboard', requireDeviceAccess, async (req, res) => {
     // 충전 이력 기반 추정치 — 전용 계측이 아니므로 참고용 (근거는 presenters.js 주석 참고)
     batteryHealth,
     aiConfidence,
-    temperature: present.sensorBlock(device.temperature, '°C', { max: 50, warn: 40, danger: 50 }),
-    current: present.sensorBlock(device.current_a, 'A', { max: 4, warn: 3.4, danger: 4, decimals: 2 }),
-    voltage: present.sensorBlock(device.voltage_v, 'V', { max: 14.5, warn: 13.8, danger: 14.5, decimals: 2 }),
+    temperature: present.sensorBlock(device.temperature, '°C', { max: limits.temperature.danger, ...limits.temperature }),
+    current: present.sensorBlock(device.current_a, 'A', { max: limits.current.danger, ...limits.current, decimals: 2 }),
+    voltage: present.sensorBlock(device.voltage_v, 'V', { max: limits.voltage.danger, ...limits.voltage, decimals: 2 }),
     aiRecommendation: {
       recommendedPercent: targetPercent,
       message: `배터리 보호를 위해 ${targetPercent}%에서 충전을 자동 종료합니다.`,

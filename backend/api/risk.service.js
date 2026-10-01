@@ -3,8 +3,8 @@ function num(value, fallback) {
   return Number.isFinite(n) ? n : fallback;
 }
 
-// 기준값은 대시보드 화면에 표시되는 값(온도 50℃ / 전류 4A / 전압 14.5V 미만)과 일치시킨다.
-// 12V 계열 배터리를 전제로 한다.
+// 기준값은 대시보드 화면(displayLimits)과 펌웨어 자체 차단 기준에 같은 값을 쓴다.
+// 12V 계열 배터리를 전제로 한다. 저전압 시연(12V 팬)에서는 Render 에 CURRENT_MAX_A=0.5 를 준다.
 const THRESHOLDS = {
   tempDanger: num(process.env.TEMP_DANGER, 50),
   tempWarning: num(process.env.TEMP_WARNING, 45),
@@ -21,7 +21,9 @@ function severity(level) {
 }
 
 // 판단 규칙:
-//   위험: 연기 감지 또는 고온 / 경고: 온도+전류·전압 이상 패턴 / 주의: 온도 상승 속도 또는 전류 변화
+//   위험: 연기 감지 · 고온 · 과전류 / 경고: 온도+전압 이상 패턴 / 주의: 온도 상승 속도 또는 고온 근접
+// 과전류는 펌웨어가 그 자리에서 릴레이를 끊는 조건이므로 서버도 위험으로 본다.
+// (주의로 두면 차단 뒤 전류가 0 이 되면서 세션이 "충전 완료"로 닫힌다)
 // overrides 로 기기별 설정(설정 화면의 "온도 차단 기준")을 덮어쓸 수 있다.
 function assess(reading, prevReading, overrides = {}) {
   const t = { ...THRESHOLDS, ...overrides };
@@ -29,14 +31,11 @@ function assess(reading, prevReading, overrides = {}) {
 
   if (smoke) return { level: 'danger', cause: 'smoke' };
   if (temperature != null && temperature >= t.tempDanger) return { level: 'danger', cause: 'overheat' };
+  if (current_a != null && current_a >= t.currentMax) return { level: 'danger', cause: 'overcurrent' };
 
-  const currentAnomaly = current_a != null && current_a >= t.currentMax;
   const voltageAnomaly = voltage_v != null && voltage_v >= t.voltageMax;
-  if (temperature != null && temperature >= t.tempWarning && (currentAnomaly || voltageAnomaly)) {
-    return {
-      level: 'warning',
-      cause: currentAnomaly ? 'temp_current_anomaly' : 'temp_voltage_anomaly',
-    };
+  if (temperature != null && temperature >= t.tempWarning && voltageAnomaly) {
+    return { level: 'warning', cause: 'temp_voltage_anomaly' };
   }
 
   if (prevReading && temperature != null && prevReading.temperature != null) {
@@ -50,9 +49,19 @@ function assess(reading, prevReading, overrides = {}) {
   if (temperature != null && temperature >= t.tempCaution) {
     return { level: 'caution', cause: 'temp_high' };
   }
-  if (currentAnomaly) return { level: 'caution', cause: 'current_change' };
 
   return { level: 'normal', cause: null };
 }
 
-module.exports = { assess, severity, THRESHOLDS };
+// 대시보드·모니터링 카드의 기준 — assess 와 같은 값을 써야 화면의 "위험"과 실제 차단이 일치한다.
+// danger 는 위험 판단 기준, warn 은 카드에 "주의"를 띄우는 선이다.
+function displayLimits(cutoffTemperature) {
+  const tempDanger = cutoffTemperature ? Number(cutoffTemperature) : THRESHOLDS.tempDanger;
+  return {
+    temperature: { danger: tempDanger, warn: Math.min(THRESHOLDS.tempCaution, tempDanger - 5) },
+    current: { danger: THRESHOLDS.currentMax, warn: Number((THRESHOLDS.currentMax * 0.85).toFixed(3)) },
+    voltage: { danger: THRESHOLDS.voltageMax, warn: 13.8 },
+  };
+}
+
+module.exports = { assess, severity, displayLimits, THRESHOLDS };

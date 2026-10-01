@@ -301,6 +301,7 @@ IP 기준 10분에 5회로 제한됩니다.
   "deviceId": "CS-0042",
   "range": "realtime",
   "updatedAt": "2026-07-28T01:57:00.000Z",
+  "limits": { "temperature": 50, "current": 4, "voltage": 14.5 },
   "measurements": [
     { "timestamp": "...", "label": "01:57", "temperature": 31.6, "current": 1.2, "voltage": 12.34 }
   ]
@@ -353,8 +354,8 @@ curl -X POST http://localhost:8000/api/ingest/readings \
 
 | 항목 | 주의 | 경고 | 위험(자동 차단) |
 |---|---|---|---|
-| 온도 | 40℃ | 45℃ | 50℃ |
-| 전류 | 4A 이상 | — | — |
+| 온도 | 40℃ | 45℃ | 50℃ (기기별 온도 차단 기준이 있으면 그 값) |
+| 전류 | — | — | 4A 이상 (`CURRENT_MAX_A`) |
 | 전압 | — | 14.5V 이상 | — |
 | 연기 | — | — | 감지 즉시 |
 

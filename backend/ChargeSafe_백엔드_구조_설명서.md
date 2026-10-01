@@ -288,7 +288,9 @@ ESP32 전용입니다. `X-API-Key` 헤더의 키를 **SHA-256 해시로 바꿔**
    | `today` | 1시간 | 24 (0시부터) | `"01:00"` |
    | `week` | 6시간 | 28 | `"7/27"` |
 
-   응답은 `{ deviceId, range, updatedAt, measurements: [...] }` 이고,
+   응답은 `{ deviceId, range, updatedAt, limits, measurements: [...] }` 이고,
+   `limits` 는 카드의 "기준 ○○ 미만"에 쓰는 위험 기준 `{ temperature, current, voltage }` 입니다
+   (온도는 기기별 차단 기준, 전류는 `CURRENT_MAX_A`).
    각 점은 `{ timestamp, label, temperature, current, voltage }` 입니다.
    (필드 이름이 DB의 `current_a`·`voltage_v` 가 아니라 화면이 쓰는 `current`·`voltage` 입니다.)
 
@@ -377,11 +379,14 @@ DB를 건드리지 않아 테스트하기 쉽습니다.
 |---|---|---|
 | 1 | 연기 감지 | **위험** (`smoke`) |
 | 2 | 온도 ≥ 50℃ | **위험** (`overheat`) |
-| 3 | 온도 ≥ 45℃ **그리고** (전류 ≥ 4A 또는 전압 ≥ 14.5V) | **경고** |
-| 4 | 온도 상승 속도 ≥ 2℃/분 | **주의** (`temp_rise`) |
-| 5 | 온도 ≥ 40℃ | **주의** (`temp_high`) |
-| 6 | 전류 ≥ 4A | **주의** (`current_change`) |
+| 3 | 전류 ≥ 4A (`CURRENT_MAX_A`) | **위험** (`overcurrent`) — 펌웨어도 같은 기준으로 릴레이를 끊는다 |
+| 4 | 온도 ≥ 45℃ **그리고** 전압 ≥ 14.5V | **경고** (`temp_voltage_anomaly`) |
+| 5 | 온도 상승 속도 ≥ 2℃/분 | **주의** (`temp_rise`) |
+| 6 | 온도 ≥ 40℃ | **주의** (`temp_high`) |
 | 7 | 그 외 | **정상** |
+
+> 예전 기록의 `current_change`(전류 이상)·`temp_current_anomaly`(온도·전류 이상)는 이제 새로 생기지 않지만,
+> 이력 화면에 이름이 표시되도록 라벨은 남겨 두었습니다.
 
 `severity()` 는 단계를 숫자로 바꿔 비교할 수 있게 합니다 (정상 0 → 위험 3).
 
@@ -704,8 +709,8 @@ curl -X POST https://chargesafe-zc39.onrender.com/api/ingest/readings \
 
 | 항목 | 주의 | 경고 | 위험 (자동 차단) |
 |---|---|---|---|
-| 온도 | 40℃ | 45℃ | **50℃** |
-| 전류 | 4A 이상 | — | — |
+| 온도 | 40℃ | 45℃ | **50℃** (기기별 "온도 차단 기준"이 있으면 그 값) |
+| 전류 | — | — | **4A 이상** |
 | 전압 | — | 14.5V 이상 | — |
 | 연기 | — | — | **감지 즉시** |
 

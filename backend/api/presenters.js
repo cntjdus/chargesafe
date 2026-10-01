@@ -161,6 +161,7 @@ function toHistoryItem(session, startBattery, endBattery) {
 const CAUSE_LABELS = {
   smoke: '연기 감지',
   overheat: '배터리 과열',
+  overcurrent: '과전류',
   temp_current_anomaly: '온도·전류 이상',
   temp_voltage_anomaly: '온도·전압 이상',
   temp_rise: '온도 급상승',
