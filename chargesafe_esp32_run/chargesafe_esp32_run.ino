@@ -51,8 +51,10 @@
 #define BUZZER_ACTIVE_HIGH 1  // 부저가 HIGH에서 울리면 1, LOW에서 울리는 모듈이면 0
 #define LED_COMMON_ANODE 0    // 공통 캐소드(GND 연결)면 0, 공통 애노드(3V3 연결)면 1
 #define ALARM_MAX_MS 30000    // 경보음 최대 지속 시간 (0 = 계속 울림), LED는 영향 없음
-#define TEMP_LIMIT_BATT 40.0  // 배터리함 위험 온도 (℃)
-#define TEMP_LIMIT_CHGR 40.0  // 충전기 표면 위험 온도 (℃)
+// 위험 온도 (℃) — 시연용으로 35℃ 로 낮춤 (손·따뜻한 물로 쉽게 넘길 수 있게). 실제 운용은 40.0
+// 웹 설정(40℃)보다 낮아서, 35~40℃ 에서는 기기가 직접 끊고 stop_reason 으로 서버에 원인을 알린다
+#define TEMP_LIMIT_BATT 35.0  // 배터리함 위험 온도
+#define TEMP_LIMIT_CHGR 35.0  // 충전기 표면 위험 온도
 #define CURRENT_LIMIT 500.0   // mA
 #define TRIP_COUNT 3          // 연속 N회(초) 초과해야 위험으로 판단
 #define GRACE_MS 3000         // 재가동 직후 돌입전류 무시 시간
