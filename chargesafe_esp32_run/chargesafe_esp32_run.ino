@@ -96,15 +96,21 @@ struct Reading {
   float currentA;
   float voltageV;
   bool charging;
+  const char* stopReason;   // 충전을 멈춘 이유 (멈추지 않았으면 nullptr) — 아래 tripCode 참고
 };
 portMUX_TYPE shareMux = portMUX_INITIALIZER_UNLOCKED;
-Reading latest = {NAN, NAN, NAN, NAN, false};
+Reading latest = {NAN, NAN, NAN, NAN, false, nullptr};
 volatile bool latestReady = false;      // 첫 센서 읽기 전에는 보내지 않는다
 Reading tripReport;                     // 차단 직전 값
 volatile bool tripReportPending = false;
 volatile bool serverCutoff = false;     // 서버가 cutoff:true 를 보냄 (웹 설정의 온도 기준·자동 차단 반영)
 volatile uint32_t resetGen = 0;         // 비상정지로 재가동할 때마다 증가 — 재가동 전 응답으로 다시 끊지 않기 위함
 volatile bool wifiUp = false;
+
+// 차단 원인 코드 — 서버로 stop_reason 에 실어 보낸다.
+// 서버는 이걸 보고 세션을 "충전 완료"가 아니라 차단·비상정지로 닫는다.
+//   overheat(배터리함) · charger_overheat(충전기) · overcurrent · server(서버 지시) / 비상정지는 estop
+const char* tripCode = nullptr;
 
 // ---------- RGB LED ----------
 void ledWrite(bool r, bool g, bool b) {
@@ -247,6 +253,7 @@ void publishReading() {
   r.currentA = ina219OK ? fabsf(currentmA) / 1000.0f : NAN;
   r.voltageV = ina219OK ? busV : NAN;
   r.charging = ina219OK && fabsf(currentmA) >= CHARGING_MIN_MA;
+  r.stopReason = estopPressed ? "estop" : tripped ? tripCode : nullptr;
 
   portENTER_CRITICAL(&shareMux);
   latest = r;
@@ -255,7 +262,10 @@ void publishReading() {
 }
 
 // ---------- 위험 차단 ----------
-void tripSequence(const char* cause) {
+// cause 는 시리얼 표시용 한글, code 는 서버로 보내는 원인 코드
+void tripSequence(const char* cause, const char* code) {
+  tripCode = code;
+
   // 차단 뒤에는 전류가 0 이 되므로, 서버에 위험 기록이 남도록 차단 직전 값을 바로 보낸다
   portENTER_CRITICAL(&shareMux);
   tripReport = latest;
@@ -357,6 +367,8 @@ bool sendReading(const Reading& r, bool& cutoffOut) {
   if (isnan(r.currentA)) doc["current_a"] = nullptr;   else doc["current_a"] = r.currentA;
   if (isnan(r.voltageV)) doc["voltage_v"] = nullptr;   else doc["voltage_v"] = r.voltageV;
   doc["smoke"] = false;           // 연기 센서는 이번 구성에 없음
+  // 비상정지·차단으로 멈췄으면 이유를 함께 보낸다 (서버가 "충전 완료"로 오해하지 않도록)
+  if (r.stopReason) doc["stop_reason"] = r.stopReason;
   String body;
   serializeJson(doc, body);
 
@@ -500,6 +512,7 @@ void loop() {
     } else {
       tripped = false;
       tripLevel = 0;
+      tripCode = nullptr;
       overCount = 0;
       resetGen++;                         // 이전 서버 응답의 차단 지시는 무효
       serverCutoff = false;
@@ -539,9 +552,11 @@ void loop() {
       bool curOver  = ina219OK && currentmA > CURRENT_LIMIT;
       overCount = (battOver || chgrOver || curOver) ? overCount + 1 : 0;
       if (overCount >= TRIP_COUNT) {
-        tripSequence(battOver ? "배터리함 과열" : chgrOver ? "충전기 과열" : "과전류");
+        if (battOver)      tripSequence("배터리함 과열", "overheat");
+        else if (chgrOver) tripSequence("충전기 과열", "charger_overheat");
+        else               tripSequence("과전류", "overcurrent");
       } else if (serverCutoff) {
-        tripSequence("서버 판단 (웹 설정 기준)");
+        tripSequence("서버 판단 (웹 설정 기준)", "server");
       }
     } else {
       overCount = 0;
