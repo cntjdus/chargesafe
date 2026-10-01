@@ -302,11 +302,17 @@ IP 기준 10분에 5회로 제한됩니다.
   "range": "realtime",
   "updatedAt": "2026-07-28T01:57:00.000Z",
   "limits": { "temperature": 50, "current": 4, "voltage": 14.5 },
+  "live": { "isCharging": true, "temperature": 31.6, "chargerTemperature": 33.0, "current": 1.2, "voltage": 12.34, "lastSeenAt": "..." },
   "measurements": [
     { "timestamp": "...", "label": "01:57", "temperature": 31.6, "chargerTemperature": 33.0, "current": 1.2, "voltage": 12.34 }
   ]
 }
 ```
+
+- `measurements` 는 **충전 중 기록**만 담습니다. 차단·비상정지로 충전이 멈추면 그래프는 마지막 충전 값에서 멈춥니다.
+- `live` 는 기기가 마지막으로 보낸 **지금 값**(대시보드와 같은 값)입니다. 충전이 멈춘 뒤의 전압 하락은 여기에 나타납니다.
+- 전류는 A 단위(소수 셋째 자리 = 1mA)로 내려주고, 화면은 mA 로 바꿔 표시합니다.
+  대시보드 응답의 `current` 카드는 서버에서 이미 mA 로 바꿔 `unit: "mA"` 로 내려줍니다.
 
 구간별로 시간 버킷 평균을 내어 점 개수를 고정합니다 —
 실시간 15초×24개 / 1시간 2분×30개 / 오늘 1시간×24개 / 7일 6시간×28개.

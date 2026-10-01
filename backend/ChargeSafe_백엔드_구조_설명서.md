@@ -289,7 +289,9 @@ ESP32 전용입니다. `X-API-Key` 헤더의 키를 **SHA-256 해시로 바꿔**
    | `today` | 1시간 | 24 (0시부터) | `"01:00"` |
    | `week` | 6시간 | 28 | `"7/27"` |
 
-   응답은 `{ deviceId, range, updatedAt, limits, measurements: [...] }` 이고,
+   응답은 `{ deviceId, range, updatedAt, limits, live, measurements: [...] }` 이고,
+   `live` 는 기기가 마지막으로 보낸 지금 값 `{ isCharging, temperature, chargerTemperature, current, voltage, lastSeenAt }`
+   입니다 (대시보드와 같은 값). `measurements` 는 충전 중 기록만 담으므로 충전이 멈추면 그래프는 멈추고 `live` 만 바뀝니다.
    `limits` 는 카드의 "기준 ○○ 미만"에 쓰는 위험 기준 `{ temperature, current, voltage }` 입니다
    (온도는 기기별 차단 기준, 전류는 `CURRENT_MAX_A`).
    각 점은 `{ timestamp, label, temperature, chargerTemperature, current, voltage }` 입니다.

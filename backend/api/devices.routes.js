@@ -565,22 +565,29 @@ router.get('/:deviceId/monitoring', requireDeviceAccess, async (req, res) => {
     [req.deviceId, cfg.bucketSec, cfg.points]
   );
 
+  const round = (v, digits) => (v === null || v === undefined ? null : Number(Number(v).toFixed(digits)));
+
   // 최신순으로 잘라온 뒤 그래프용으로 시간순으로 뒤집는다
   const measurements = rows.reverse().map((r) => ({
     timestamp: new Date(r.bucket).toISOString(),
     label: cfg.label === 'day' ? present.monthDay(r.bucket) : present.hhmm(r.bucket),
-    temperature: r.temperature === null ? null : Number(Number(r.temperature).toFixed(1)),
-    chargerTemperature: r.charger_temperature === null ? null : Number(Number(r.charger_temperature).toFixed(1)),
-    current: r.current === null ? null : Number(Number(r.current).toFixed(2)),
-    voltage: r.voltage === null ? null : Number(Number(r.voltage).toFixed(2)),
+    temperature: round(r.temperature, 1),
+    chargerTemperature: round(r.charger_temperature, 1),
+    current: round(r.current, 3),   // A, 1mA 단위까지 (화면은 mA 로 표시)
+    voltage: round(r.voltage, 2),
   }));
 
-  // 카드의 "기준 ○○ 미만" 표시와 정상/주의 판정에 쓰는 위험 기준 (기기별 온도 차단 기준 반영)
-  const { rows: setting } = await pool.query(
-    'SELECT cutoff_temperature FROM devices WHERE id = $1',
+  // 기기별 온도 차단 기준과, 기기가 마지막으로 보낸 현재 값
+  const { rows: devRows } = await pool.query(
+    `SELECT d.cutoff_temperature, s.is_charging, s.temperature, s.charger_temp,
+            s.current_a, s.voltage_v, s.last_seen_at
+     FROM devices d LEFT JOIN device_status s ON s.device_id = d.id
+     WHERE d.id = $1`,
     [req.deviceId]
   );
-  const limits = displayLimits(setting[0]?.cutoff_temperature);
+  const dev = devRows[0] || {};
+  // 카드의 "기준 ○○ 미만" 표시와 정상/주의 판정에 쓰는 위험 기준
+  const limits = displayLimits(dev.cutoff_temperature);
 
   res.json({
     deviceId: req.deviceSerial,
@@ -591,6 +598,16 @@ router.get('/:deviceId/monitoring', requireDeviceAccess, async (req, res) => {
       current: limits.current.danger,
       voltage: limits.voltage.danger,
     },
+    // 지금 값 — 대시보드와 같은 값이다. 그래프(measurements)는 충전 중 기록만 담으므로,
+    // 차단·비상정지로 충전이 멈추면 그래프는 마지막 충전 값에서 멈추고 이 값만 바뀐다.
+    live: dev.last_seen_at ? {
+      isCharging: Boolean(dev.is_charging),
+      temperature: round(dev.temperature, 1),
+      chargerTemperature: round(dev.charger_temp, 1),
+      current: round(dev.current_a, 3),
+      voltage: round(dev.voltage_v, 2),
+      lastSeenAt: new Date(dev.last_seen_at).toISOString(),
+    } : null,
     measurements,
   });
 });
@@ -684,7 +701,11 @@ router.get('/:deviceId/dashboard', requireDeviceAccess, async (req, res) => {
     temperature: present.sensorBlock(device.temperature, '°C', { max: limits.temperature.danger, ...limits.temperature }),
     // 충전기 표면 온도 — 배터리 온도와 같은 차단 기준을 쓴다
     chargerTemperature: present.sensorBlock(device.charger_temp, '°C', { max: limits.temperature.danger, ...limits.temperature }),
-    current: present.sensorBlock(device.current_a, 'A', { max: limits.current.danger, ...limits.current, decimals: 2 }),
+    // 전류는 실제 기기(LCD·시리얼)와 같은 mA 로 내려준다 (DB·위험 판단은 A)
+    current: present.sensorBlock(
+      device.current_a == null ? null : Number(device.current_a) * 1000, 'mA',
+      { max: limits.current.danger * 1000, warn: limits.current.warn * 1000, danger: limits.current.danger * 1000, decimals: 0 }
+    ),
     voltage: present.sensorBlock(device.voltage_v, 'V', { max: limits.voltage.danger, ...limits.voltage, decimals: 2 }),
     aiRecommendation: {
       recommendedPercent: targetPercent,

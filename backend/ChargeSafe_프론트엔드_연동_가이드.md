@@ -316,6 +316,8 @@ const data = await getDashboard(deviceId);
 ```jsonc
 { "deviceId": "CS-0042", "range": "realtime", "updatedAt": "...",
   "limits": { "temperature": 50, "current": 4, "voltage": 14.5 },   // 카드 기준선 (기기 설정·서버 환경변수 반영)
+  "live": { "isCharging": false, "temperature": 24.4, "chargerTemperature": 24.6, "current": 0, "voltage": 0.6, "lastSeenAt": "..." },
+  // live = 지금 값 (대시보드와 같음). 그래프(measurements)는 충전 중 기록만 담는다. 전류는 A (화면은 ×1000 해서 mA)
   "measurements": [{ "timestamp": "...", "label": "14:03", "temperature": 31.2, "chargerTemperature": 33.0, "current": 1.2, "voltage": 12.4 }] }
 // temperature = 배터리 온도, chargerTemperature = 충전기 온도 (센서가 없던 기간은 null)
 ```
