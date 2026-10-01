@@ -89,8 +89,10 @@ Chargesafe_Backend/
 ① ESP32
    POST /api/ingest/readings
    헤더: X-API-Key: csk_xxxxx
-   본문: { charging, temperature, charger_temperature, current_a, voltage_v, smoke }
-        (temperature = 배터리 온도, charger_temperature = 충전기 표면 온도)
+   본문: { charging, temperature, charger_temperature, current_a, voltage_v, smoke, stop_reason? }
+        (temperature = 배터리 온도, charger_temperature = 충전기 표면 온도,
+         stop_reason = 충전이 멈춘 이유: estop · overheat · charger_overheat · overcurrent · server
+         — charging:false 와 함께 오면 세션을 "충전 완료" 대신 비상정지·자동 차단으로 닫는다)
         ↓
 ② app.js 가 /api/ingest 경로를 ingest.routes.js 로 넘김
         ↓

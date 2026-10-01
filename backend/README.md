@@ -335,6 +335,16 @@ curl -X POST http://localhost:8000/api/ingest/readings \
 `temperature` 는 배터리(함) 온도, `charger_temperature` 는 충전기 표면 온도입니다.
 온도 센서가 하나뿐인 기기는 `charger_temperature` 를 빼고 보내면 됩니다.
 
+충전이 멈춘 이유가 있으면 `stop_reason` 을 함께 보냅니다. `charging: false` 와 함께 오면
+세션을 "충전 완료"가 아니라 아래처럼 닫습니다 (서버가 이미 위험으로 차단한 세션이면 알림을 다시 보내지 않음).
+
+| `stop_reason` | 기록 | 알림 |
+|---|---|---|
+| `estop` | 이력 "비상정지" (`end_reason: emergency_stop`) | 알림 센터 "비상정지" |
+| `overheat` / `charger_overheat` / `overcurrent` | 이력 "자동 차단" + 원인 | 보호자 위험 알림(푸시) |
+| `server` | 서버가 이미 기록함 | — |
+| 없음 | 이력 "정상 완료" | "충전 완료" |
+
 응답으로 기기가 할 일을 함께 내려줍니다.
 
 | 필드 | 의미 |

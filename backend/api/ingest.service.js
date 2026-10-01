@@ -32,7 +32,9 @@ async function closeSession(sessionId) {
   const { rows } = await pool.query(
     `UPDATE charging_sessions SET
        ended_at   = now(),
-       end_reason = CASE WHEN auto_cutoff THEN 'auto_cutoff' ELSE 'completed' END,
+       end_reason = CASE WHEN cutoff_cause = 'emergency_stop' THEN 'emergency_stop'
+                         WHEN auto_cutoff THEN 'auto_cutoff'
+                         ELSE 'completed' END,
        max_temp         = (SELECT MAX(temperature)  FROM sensor_readings WHERE session_id = $1),
        max_charger_temp = (SELECT MAX(charger_temp) FROM sensor_readings WHERE session_id = $1),
        max_current      = (SELECT MAX(current_a)    FROM sensor_readings WHERE session_id = $1)
@@ -172,6 +174,48 @@ async function checkLongCharge(deviceId, session, hours) {
     `${hours}시간 이상 충전이 계속되고 있습니다. 충전 상태를 확인해 주세요.`);
 }
 
+// 펌웨어가 알려 주는 "충전이 멈춘 이유"(body.stop_reason) → 세션에 남길 원인 코드.
+// 'server'(서버의 차단 지시로 멈춤)는 서버가 이미 세션에 기록했으므로 따로 처리하지 않는다.
+const STOP_CAUSES = {
+  estop: 'emergency_stop',
+  overheat: 'overheat',
+  charger_overheat: 'charger_overheat',
+  overcurrent: 'overcurrent',
+};
+
+/**
+ * 기기가 스스로 충전을 멈춘 경우(비상정지·기기 자체 기준 차단)를 세션에 남기고 알린다.
+ * 이게 없으면 전류가 0 이 된 것만 보고 "충전 완료"로 처리한다.
+ * 서버가 이미 위험으로 판단해 차단·알림한 세션이면 원인을 덮어쓰지 않고 알림도 다시 보내지 않는다.
+ */
+async function recordDeviceStop(deviceId, session, cause) {
+  await pool.query(
+    `UPDATE charging_sessions
+     SET auto_cutoff = true, cutoff_cause = COALESCE(cutoff_cause, $2)
+     WHERE id = $1`,
+    [session.id, cause]
+  );
+  if (session.auto_cutoff) return;
+
+  // 알림 발송 실패가 센서 수신(안전 기능)까지 막지 않도록 격리
+  try {
+    if (cause === 'emergency_stop') {
+      await createNotice(deviceId, 'warning', '비상정지',
+        '비상정지 버튼이 눌려 충전이 중단되었습니다. 기기 상태를 확인한 뒤 버튼을 다시 풀어 주세요.');
+      return;
+    }
+    // 기기 자체 기준으로 차단한 위험 — 서버가 판단한 위험과 같은 방식으로 기록하고 보호자에게 알린다
+    const { rows } = await pool.query(
+      `INSERT INTO risk_events (session_id, level, cause, detail)
+       VALUES ($1, 'danger', $2, $3) RETURNING id`,
+      [session.id, cause, JSON.stringify({ source: 'device' })]
+    );
+    await notifyGuardians(rows[0].id, deviceId, 'danger', cause);
+  } catch (err) {
+    console.error('[notify] 기기 차단 알림 실패:', err.message);
+  }
+}
+
 /** 마지막 수신이 10분 이상 전이면 "기기 연결됨" 알림을 낼 대상으로 본다 */
 async function wasOffline(deviceId) {
   const { rows } = await pool.query(
@@ -209,6 +253,11 @@ async function handleReading(device, body) {
 
   if (!charging) {
     if (session) {
+      // 기기가 비상정지·자체 차단으로 멈췄다고 알려 오면 차단으로 기록한다
+      const stopCause = Object.hasOwn(STOP_CAUSES, String(body.stop_reason))
+        ? STOP_CAUSES[body.stop_reason] : null;
+      if (stopCause) await recordDeviceStop(device.id, session, stopCause);
+
       const closed = await closeSession(session.id);
       // 자동 차단이 아니라 정상 종료된 경우에만 "충전 완료" 알림을 남긴다
       if (closed && !closed.auto_cutoff) {

@@ -155,7 +155,10 @@ function toHistoryItem(session, startBattery, endBattery) {
     // 충전기 온도 센서가 없던 기록은 null (0 으로 채우면 "0℃"로 오해할 수 있음)
     maxChargerTemperature: num(session.max_charger_temp) === null ? null : Math.round(num(session.max_charger_temp)),
     maxCurrent: num(session.max_current),
-    status: session.auto_cutoff ? 'blocked' : ongoing ? 'charging' : 'completed',
+    // 비상정지는 사람이 멈춘 것이라 "자동 차단"·"정상 완료" 어느 쪽에도 세지 않는다
+    status: session.cutoff_cause === 'emergency_stop' ? 'stopped'
+      : session.auto_cutoff ? 'blocked'
+      : ongoing ? 'charging' : 'completed',
     blockedReason: session.cutoff_cause ? CAUSE_LABELS[session.cutoff_cause] || session.cutoff_cause : null,
   };
 }
@@ -165,6 +168,7 @@ const CAUSE_LABELS = {
   overheat: '배터리 과열',
   charger_overheat: '충전기 과열',
   overcurrent: '과전류',
+  emergency_stop: '비상정지',
   temp_current_anomaly: '온도·전류 이상',
   temp_voltage_anomaly: '온도·전압 이상',
   temp_rise: '온도 급상승',
