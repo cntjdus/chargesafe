@@ -14,7 +14,7 @@ const DEVICE_COLUMNS = `
   d.firmware_version, d.firmware_update_requested, d.target_percent, ud.is_favorite,
   d.cutoff_temperature, d.auto_cutoff_enabled, d.cooling_fan_enabled,
   d.long_charge_warning_hours,
-  s.is_charging, s.level, s.temperature, s.current_a, s.voltage_v,
+  s.is_charging, s.level, s.temperature, s.charger_temp, s.current_a, s.voltage_v,
   s.smoke, s.last_seen_at`;
 
 /** 초대 코드에 쓰는 글자 — 헷갈리는 I, O, 0, 1 을 뺀 32자.
@@ -552,8 +552,9 @@ router.get('/:deviceId/monitoring', requireDeviceAccess, async (req, res) => {
   const { rows } = await pool.query(
     `SELECT
        to_timestamp(floor(extract(epoch FROM r.recorded_at) / $2) * $2) AS bucket,
-       avg(r.temperature) AS temperature,
-       avg(r.current_a)   AS current,
+       avg(r.temperature)  AS temperature,
+       avg(r.charger_temp) AS charger_temperature,
+       avg(r.current_a)    AS current,
        avg(r.voltage_v)   AS voltage
      FROM sensor_readings r
      JOIN charging_sessions s ON s.id = r.session_id
@@ -569,6 +570,7 @@ router.get('/:deviceId/monitoring', requireDeviceAccess, async (req, res) => {
     timestamp: new Date(r.bucket).toISOString(),
     label: cfg.label === 'day' ? present.monthDay(r.bucket) : present.hhmm(r.bucket),
     temperature: r.temperature === null ? null : Number(Number(r.temperature).toFixed(1)),
+    chargerTemperature: r.charger_temperature === null ? null : Number(Number(r.charger_temperature).toFixed(1)),
     current: r.current === null ? null : Number(Number(r.current).toFixed(2)),
     voltage: r.voltage === null ? null : Number(Number(r.voltage).toFixed(2)),
   }));
@@ -680,6 +682,8 @@ router.get('/:deviceId/dashboard', requireDeviceAccess, async (req, res) => {
     batteryHealth,
     aiConfidence,
     temperature: present.sensorBlock(device.temperature, '°C', { max: limits.temperature.danger, ...limits.temperature }),
+    // 충전기 표면 온도 — 배터리 온도와 같은 차단 기준을 쓴다
+    chargerTemperature: present.sensorBlock(device.charger_temp, '°C', { max: limits.temperature.danger, ...limits.temperature }),
     current: present.sensorBlock(device.current_a, 'A', { max: limits.current.danger, ...limits.current, decimals: 2 }),
     voltage: present.sensorBlock(device.voltage_v, 'V', { max: limits.voltage.danger, ...limits.voltage, decimals: 2 }),
     aiRecommendation: {
@@ -739,7 +743,7 @@ router.get('/:deviceId/history', requireDeviceAccess, async (req, res) => {
 router.get('/:deviceId/sessions', requireDeviceAccess, async (req, res) => {
   const limit = Math.min(Number(req.query.limit) || 20, 100);
   const { rows } = await pool.query(
-    `SELECT id, started_at, ended_at, end_reason, max_temp, max_current,
+    `SELECT id, started_at, ended_at, end_reason, max_temp, max_charger_temp, max_current,
             auto_cutoff, cutoff_cause
      FROM charging_sessions
      WHERE device_id = $1
@@ -754,7 +758,7 @@ router.get('/:deviceId/sessions', requireDeviceAccess, async (req, res) => {
 router.get('/:deviceId/readings', requireDeviceAccess, async (req, res) => {
   const minutes = Math.min(Math.max(Number(req.query.minutes) || 60, 1), 60 * 24 * 7);
   const { rows } = await pool.query(
-    `SELECT r.recorded_at, r.temperature, r.current_a, r.voltage_v, r.smoke, r.level
+    `SELECT r.recorded_at, r.temperature, r.charger_temp, r.current_a, r.voltage_v, r.smoke, r.level
      FROM sensor_readings r
      JOIN charging_sessions s ON s.id = r.session_id
      WHERE s.device_id = $1 AND r.recorded_at >= now() - make_interval(mins => $2)

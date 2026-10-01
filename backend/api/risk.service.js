@@ -21,16 +21,19 @@ function severity(level) {
 }
 
 // 판단 규칙:
-//   위험: 연기 감지 · 고온 · 과전류 / 경고: 온도+전압 이상 패턴 / 주의: 온도 상승 속도 또는 고온 근접
+//   위험: 연기 감지 · 배터리 고온 · 충전기 고온 · 과전류 / 경고: 배터리 온도+전압 이상 패턴
+//   주의: 배터리 온도 상승 속도 또는 두 온도 중 하나라도 고온 근접
+// 온도는 배터리(temperature)와 충전기(charger_temp) 두 개를 같은 기준으로 보고, 하나만 넘어도 위험이다.
 // 과전류는 펌웨어가 그 자리에서 릴레이를 끊는 조건이므로 서버도 위험으로 본다.
 // (주의로 두면 차단 뒤 전류가 0 이 되면서 세션이 "충전 완료"로 닫힌다)
 // overrides 로 기기별 설정(설정 화면의 "온도 차단 기준")을 덮어쓸 수 있다.
 function assess(reading, prevReading, overrides = {}) {
   const t = { ...THRESHOLDS, ...overrides };
-  const { temperature, current_a, voltage_v, smoke } = reading;
+  const { temperature, charger_temp, current_a, voltage_v, smoke } = reading;
 
   if (smoke) return { level: 'danger', cause: 'smoke' };
   if (temperature != null && temperature >= t.tempDanger) return { level: 'danger', cause: 'overheat' };
+  if (charger_temp != null && charger_temp >= t.tempDanger) return { level: 'danger', cause: 'charger_overheat' };
   if (current_a != null && current_a >= t.currentMax) return { level: 'danger', cause: 'overcurrent' };
 
   const voltageAnomaly = voltage_v != null && voltage_v >= t.voltageMax;
@@ -48,6 +51,9 @@ function assess(reading, prevReading, overrides = {}) {
   }
   if (temperature != null && temperature >= t.tempCaution) {
     return { level: 'caution', cause: 'temp_high' };
+  }
+  if (charger_temp != null && charger_temp >= t.tempCaution) {
+    return { level: 'caution', cause: 'charger_temp_high' };
   }
 
   return { level: 'normal', cause: null };

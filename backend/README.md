@@ -303,7 +303,7 @@ IP 기준 10분에 5회로 제한됩니다.
   "updatedAt": "2026-07-28T01:57:00.000Z",
   "limits": { "temperature": 50, "current": 4, "voltage": 14.5 },
   "measurements": [
-    { "timestamp": "...", "label": "01:57", "temperature": 31.6, "current": 1.2, "voltage": 12.34 }
+    { "timestamp": "...", "label": "01:57", "temperature": 31.6, "chargerTemperature": 33.0, "current": 1.2, "voltage": 12.34 }
   ]
 }
 ```
@@ -323,8 +323,11 @@ ESP32 전송 예시:
 curl -X POST http://localhost:8000/api/ingest/readings \
   -H "X-API-Key: csk_발급받은키" \
   -H "Content-Type: application/json" \
-  -d '{"charging": true, "temperature": 32.0, "current_a": 1.2, "voltage_v": 12.4, "smoke": false, "firmware_version": "1.0.0"}'
+  -d '{"charging": true, "temperature": 32.0, "charger_temperature": 33.5, "current_a": 1.2, "voltage_v": 12.4, "smoke": false, "firmware_version": "1.0.0"}'
 ```
+
+`temperature` 는 배터리(함) 온도, `charger_temperature` 는 충전기 표면 온도입니다.
+온도 센서가 하나뿐인 기기는 `charger_temperature` 를 빼고 보내면 됩니다.
 
 응답으로 기기가 할 일을 함께 내려줍니다.
 
@@ -354,7 +357,8 @@ curl -X POST http://localhost:8000/api/ingest/readings \
 
 | 항목 | 주의 | 경고 | 위험(자동 차단) |
 |---|---|---|---|
-| 온도 | 40℃ | 45℃ | 50℃ (기기별 온도 차단 기준이 있으면 그 값) |
+| 배터리 온도 | 40℃ | 45℃ | 50℃ (기기별 온도 차단 기준이 있으면 그 값) |
+| 충전기 온도 | 40℃ | — | 배터리 온도와 같은 기준 — 둘 중 하나만 넘어도 위험 |
 | 전류 | — | — | 4A 이상 (`CURRENT_MAX_A`) |
 | 전압 | — | 14.5V 이상 | — |
 | 연기 | — | — | 감지 즉시 |

@@ -122,19 +122,20 @@ async function seed(user) {
     readings.push({
       minutesAgo,
       temperature: (29.5 + progress * 5.4 + wave).toFixed(2),
+      chargerTemp: (31.0 + progress * 6.2 + wave * 0.6).toFixed(2),   // 충전기 표면은 배터리보다 조금 더 뜨겁다
       current: (2.1 - progress * 0.7 + wave * 0.06).toFixed(3),
       voltage: socToVoltage(soc).toFixed(2),
     });
   }
 
   const values = readings
-    .map((_, i) => `($1, now() - make_interval(mins => $${i * 4 + 2}), $${i * 4 + 3}, $${i * 4 + 4}, $${i * 4 + 5})`)
+    .map((_, i) => `($1, now() - make_interval(mins => $${i * 5 + 2}), $${i * 5 + 3}, $${i * 5 + 4}, $${i * 5 + 5}, $${i * 5 + 6})`)
     .join(', ');
   const params = [liveSession];
-  readings.forEach((r) => params.push(r.minutesAgo, r.temperature, r.current, r.voltage));
+  readings.forEach((r) => params.push(r.minutesAgo, r.temperature, r.chargerTemp, r.current, r.voltage));
 
   await pool.query(
-    `INSERT INTO sensor_readings (session_id, recorded_at, temperature, current_a, voltage_v)
+    `INSERT INTO sensor_readings (session_id, recorded_at, temperature, charger_temp, current_a, voltage_v)
      VALUES ${values}`,
     params
   );
@@ -142,12 +143,12 @@ async function seed(user) {
   const last = readings[readings.length - 1];
   await pool.query(
     `INSERT INTO device_status
-       (device_id, is_charging, level, temperature, current_a, voltage_v, last_seen_at)
-     VALUES ($1, true, 'normal', $2, $3, $4, now())
+       (device_id, is_charging, level, temperature, charger_temp, current_a, voltage_v, last_seen_at)
+     VALUES ($1, true, 'normal', $2, $5, $3, $4, now())
      ON CONFLICT (device_id) DO UPDATE SET
-       is_charging = true, temperature = $2, current_a = $3,
+       is_charging = true, temperature = $2, charger_temp = $5, current_a = $3,
        voltage_v = $4, last_seen_at = now()`,
-    [deviceId, last.temperature, last.current, last.voltage]
+    [deviceId, last.temperature, last.current, last.voltage, last.chargerTemp]
   );
 
   // ── 알림 4종 (알림 센터 필터 확인용) ──

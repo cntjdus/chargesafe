@@ -89,7 +89,8 @@ Chargesafe_Backend/
 ① ESP32
    POST /api/ingest/readings
    헤더: X-API-Key: csk_xxxxx
-   본문: { charging, temperature, current_a, voltage_v, smoke }
+   본문: { charging, temperature, charger_temperature, current_a, voltage_v, smoke }
+        (temperature = 배터리 온도, charger_temperature = 충전기 표면 온도)
         ↓
 ② app.js 가 /api/ingest 경로를 ingest.routes.js 로 넘김
         ↓
@@ -291,7 +292,8 @@ ESP32 전용입니다. `X-API-Key` 헤더의 키를 **SHA-256 해시로 바꿔**
    응답은 `{ deviceId, range, updatedAt, limits, measurements: [...] }` 이고,
    `limits` 는 카드의 "기준 ○○ 미만"에 쓰는 위험 기준 `{ temperature, current, voltage }` 입니다
    (온도는 기기별 차단 기준, 전류는 `CURRENT_MAX_A`).
-   각 점은 `{ timestamp, label, temperature, current, voltage }` 입니다.
+   각 점은 `{ timestamp, label, temperature, chargerTemperature, current, voltage }` 입니다.
+   (`temperature` 는 배터리 온도, `chargerTemperature` 는 충전기 온도 — 온도 기준은 둘 다 `limits.temperature`)
    (필드 이름이 DB의 `current_a`·`voltage_v` 가 아니라 화면이 쓰는 `current`·`voltage` 입니다.)
 
 5. **기기별 안전 설정 (`PATCH`)**
@@ -378,12 +380,17 @@ DB를 건드리지 않아 테스트하기 쉽습니다.
 | 순서 | 조건 | 결과 |
 |---|---|---|
 | 1 | 연기 감지 | **위험** (`smoke`) |
-| 2 | 온도 ≥ 50℃ | **위험** (`overheat`) |
-| 3 | 전류 ≥ 4A (`CURRENT_MAX_A`) | **위험** (`overcurrent`) — 펌웨어도 같은 기준으로 릴레이를 끊는다 |
-| 4 | 온도 ≥ 45℃ **그리고** 전압 ≥ 14.5V | **경고** (`temp_voltage_anomaly`) |
-| 5 | 온도 상승 속도 ≥ 2℃/분 | **주의** (`temp_rise`) |
-| 6 | 온도 ≥ 40℃ | **주의** (`temp_high`) |
-| 7 | 그 외 | **정상** |
+| 2 | 배터리 온도 ≥ 50℃ | **위험** (`overheat`) |
+| 3 | 충전기 온도 ≥ 50℃ | **위험** (`charger_overheat`) — 두 온도 중 하나만 넘어도 위험 |
+| 4 | 전류 ≥ 4A (`CURRENT_MAX_A`) | **위험** (`overcurrent`) — 펌웨어도 같은 기준으로 릴레이를 끊는다 |
+| 5 | 배터리 온도 ≥ 45℃ **그리고** 전압 ≥ 14.5V | **경고** (`temp_voltage_anomaly`) |
+| 6 | 배터리 온도 상승 속도 ≥ 2℃/분 | **주의** (`temp_rise`) |
+| 7 | 배터리 온도 ≥ 40℃ | **주의** (`temp_high`) |
+| 8 | 충전기 온도 ≥ 40℃ | **주의** (`charger_temp_high`) |
+| 9 | 그 외 | **정상** |
+
+> 위험 온도(50℃)는 기기별 "온도 차단 기준"이 있으면 그 값을 두 온도 모두에 씁니다.
+> 충전기 온도(`charger_temp`)는 마이그레이션 010 에서 추가했고, 센서가 하나뿐인 기기는 비어 있습니다.
 
 > 예전 기록의 `current_change`(전류 이상)·`temp_current_anomaly`(온도·전류 이상)는 이제 새로 생기지 않지만,
 > 이력 화면에 이름이 표시되도록 라벨은 남겨 두었습니다.
@@ -609,9 +616,9 @@ users ─┘
 | `users` | 보호자 계정 | email, **username**, password_hash, name, phone, role |
 | `devices` | 도킹스테이션 | serial_number, api_key_hash, name, location, is_active, **firmware_version**, **firmware_update_requested**, **pairing_until**, **target_percent**, **cutoff_temperature**, **auto_cutoff_enabled**, **cooling_fan_enabled**, **long_charge_warning_hours** |
 | `user_devices` | 보호자 ↔ 기기 연결 (N:M) | user_id, device_id, notify, **is_favorite**, **relation**, **created_at**(소유자 판별) |
-| `device_status` | 현재 상태 (기기당 1행) | is_charging, level, temperature, current_a, voltage_v, smoke, last_seen_at |
-| `charging_sessions` | 충전 1회 | started_at, ended_at, end_reason, max_temp, max_current, auto_cutoff, cutoff_cause |
-| `sensor_readings` | 센서 기록 (고빈도) | recorded_at, temperature, current_a, voltage_v, smoke, level |
+| `device_status` | 현재 상태 (기기당 1행) | is_charging, level, temperature, **charger_temp**, current_a, voltage_v, smoke, last_seen_at |
+| `charging_sessions` | 충전 1회 | started_at, ended_at, end_reason, max_temp, **max_charger_temp**, max_current, auto_cutoff, cutoff_cause |
+| `sensor_readings` | 센서 기록 (고빈도) | recorded_at, temperature, **charger_temp**, current_a, voltage_v, smoke, level |
 | `risk_events` | 위험 발생 기록 | level, cause, detail(JSONB), occurred_at |
 | `notifications` | 보호자 알림 | **kind**, **title**, message, status, **read_at**, **occurred_at** |
 | `push_tokens` | 푸시 토큰 | token, user_agent, last_used_at |
@@ -709,7 +716,8 @@ curl -X POST https://chargesafe-zc39.onrender.com/api/ingest/readings \
 
 | 항목 | 주의 | 경고 | 위험 (자동 차단) |
 |---|---|---|---|
-| 온도 | 40℃ | 45℃ | **50℃** (기기별 "온도 차단 기준"이 있으면 그 값) |
+| 배터리 온도 | 40℃ | 45℃ | **50℃** (기기별 "온도 차단 기준"이 있으면 그 값) |
+| 충전기 온도 | 40℃ | — | **배터리 온도와 같은 기준** (둘 중 하나만 넘어도 위험) |
 | 전류 | — | — | **4A 이상** |
 | 전압 | — | 14.5V 이상 | — |
 | 연기 | — | — | **감지 즉시** |

@@ -33,8 +33,9 @@ async function closeSession(sessionId) {
     `UPDATE charging_sessions SET
        ended_at   = now(),
        end_reason = CASE WHEN auto_cutoff THEN 'auto_cutoff' ELSE 'completed' END,
-       max_temp    = (SELECT MAX(temperature) FROM sensor_readings WHERE session_id = $1),
-       max_current = (SELECT MAX(current_a)   FROM sensor_readings WHERE session_id = $1)
+       max_temp         = (SELECT MAX(temperature)  FROM sensor_readings WHERE session_id = $1),
+       max_charger_temp = (SELECT MAX(charger_temp) FROM sensor_readings WHERE session_id = $1),
+       max_current      = (SELECT MAX(current_a)    FROM sensor_readings WHERE session_id = $1)
      WHERE id = $1
      RETURNING auto_cutoff`,
     [sessionId]
@@ -123,14 +124,15 @@ async function getCurrentLevel(deviceId) {
 async function upsertStatus(deviceId, status) {
   await pool.query(
     `INSERT INTO device_status
-       (device_id, is_charging, level, temperature, current_a, voltage_v, smoke, last_seen_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, now())
+       (device_id, is_charging, level, temperature, charger_temp, current_a, voltage_v, smoke, last_seen_at)
+     VALUES ($1, $2, $3, $4, $8, $5, $6, $7, now())
      ON CONFLICT (device_id) DO UPDATE SET
        is_charging = EXCLUDED.is_charging,
        level = EXCLUDED.level,
        -- 값이 없는 수신(예: 충전 종료 신호)에는 마지막으로 알던 값을 유지한다.
        -- 그래야 충전이 끝난 뒤에도 대시보드에 마지막 센서값이 남는다.
        temperature = COALESCE(EXCLUDED.temperature, device_status.temperature),
+       charger_temp = COALESCE(EXCLUDED.charger_temp, device_status.charger_temp),
        current_a = COALESCE(EXCLUDED.current_a, device_status.current_a),
        voltage_v = COALESCE(EXCLUDED.voltage_v, device_status.voltage_v),
        smoke = EXCLUDED.smoke,
@@ -143,6 +145,7 @@ async function upsertStatus(deviceId, status) {
       status.current_a,
       status.voltage_v,
       status.smoke,
+      status.charger_temp,
     ]
   );
 }
@@ -182,7 +185,8 @@ async function wasOffline(deviceId) {
 async function handleReading(device, body) {
   const charging = Boolean(body.charging);
   const reading = {
-    temperature: toNum(body.temperature),
+    temperature: toNum(body.temperature),            // 배터리(함) 온도
+    charger_temp: toNum(body.charger_temperature),   // 충전기 표면 온도 (센서가 하나면 null)
     current_a: toNum(body.current_a),
     voltage_v: toNum(body.voltage_v),
     smoke: Boolean(body.smoke),
@@ -233,9 +237,10 @@ async function handleReading(device, body) {
 
   await pool.query(
     `INSERT INTO sensor_readings
-       (session_id, temperature, current_a, voltage_v, smoke, level)
-     VALUES ($1, $2, $3, $4, $5, $6)`,
-    [session.id, reading.temperature, reading.current_a, reading.voltage_v, reading.smoke, level]
+       (session_id, temperature, charger_temp, current_a, voltage_v, smoke, level)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+    [session.id, reading.temperature, reading.charger_temp, reading.current_a,
+      reading.voltage_v, reading.smoke, level]
   );
 
   const prevLevel = await getCurrentLevel(device.id);

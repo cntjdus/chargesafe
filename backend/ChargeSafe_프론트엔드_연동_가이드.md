@@ -316,7 +316,8 @@ const data = await getDashboard(deviceId);
 ```jsonc
 { "deviceId": "CS-0042", "range": "realtime", "updatedAt": "...",
   "limits": { "temperature": 50, "current": 4, "voltage": 14.5 },   // 카드 기준선 (기기 설정·서버 환경변수 반영)
-  "measurements": [{ "timestamp": "...", "label": "14:03", "temperature": 31.2, "current": 1.2, "voltage": 12.4 }] }
+  "measurements": [{ "timestamp": "...", "label": "14:03", "temperature": 31.2, "chargerTemperature": 33.0, "current": 1.2, "voltage": 12.4 }] }
+// temperature = 배터리 온도, chargerTemperature = 충전기 온도 (센서가 없던 기간은 null)
 ```
 
 센서 데이터가 없으면 `measurements` 가 빈 배열입니다(화면에 이미 "표시할 데이터가 없습니다" 처리가 있습니다).
