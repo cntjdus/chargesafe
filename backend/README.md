@@ -341,7 +341,7 @@ curl -X POST http://localhost:8000/api/ingest/readings \
 | `stop_reason` | 기록 | 알림 |
 |---|---|---|
 | `estop` | 이력 "비상정지" (`end_reason: emergency_stop`) | 알림 센터 "비상정지" |
-| `overheat` / `charger_overheat` / `overcurrent` | 이력 "자동 차단" + 원인 | 보호자 위험 알림(푸시) |
+| `overheat` / `charger_overheat` / `temp_rise` / `overcurrent` / `overvoltage` / `undervoltage` / `short_circuit` / `temp_current_anomaly` / `temp_voltage_anomaly` / `sensor_fault` | 이력 "자동 차단" + 원인 | 보호자 위험 알림(푸시) |
 | `server` | 서버가 이미 기록함 | — |
 | 없음 | 이력 "정상 완료" | "충전 완료" |
 

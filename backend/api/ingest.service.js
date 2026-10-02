@@ -176,11 +176,19 @@ async function checkLongCharge(deviceId, session, hours) {
 
 // 펌웨어가 알려 주는 "충전이 멈춘 이유"(body.stop_reason) → 세션에 남길 원인 코드.
 // 'server'(서버의 차단 지시로 멈춤)는 서버가 이미 세션에 기록했으므로 따로 처리하지 않는다.
+// 펌웨어는 온도·전류·전압을 단계별로 판단하므로 서버 자체 판단에 없는 원인(전압·단락·센서 이상)도 온다.
 const STOP_CAUSES = {
   estop: 'emergency_stop',
   overheat: 'overheat',
   charger_overheat: 'charger_overheat',
+  temp_rise: 'temp_rise',
   overcurrent: 'overcurrent',
+  overvoltage: 'overvoltage',
+  undervoltage: 'undervoltage',
+  short_circuit: 'short_circuit',
+  temp_current_anomaly: 'temp_current_anomaly',
+  temp_voltage_anomaly: 'temp_voltage_anomaly',
+  sensor_fault: 'sensor_fault',
 };
 
 /**
