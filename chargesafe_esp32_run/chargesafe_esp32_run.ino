@@ -24,7 +24,8 @@
  *
  * 시리얼 시험 명령 (115200, 시리얼 모니터에서 입력)
  *   t=전류 원인 차단 / b=온도 즉시 차단 / s=단락 의심 / r=해제 / 1·2=K1·K2 고장 시뮬 / i=기준값 / h=도움말
- *   ※ 시험 차단도 서버에 실제 차단으로 기록된다
+ *   k=K1 단독 차단 시험 (K2 는 그대로, 5초 뒤 자동 복구 — 서버에는 기록하지 않음)
+ *   ※ t·b·s 시험 차단은 서버에 실제 차단으로 기록된다
  */
 
 #include <WiFi.h>
@@ -143,6 +144,9 @@
 #define SIM_K1_STUCK 0
 #define SIM_K2_STUCK 0
 
+// (9) K1 단독 차단 시험 (시리얼 'k'): K2 는 그대로 두고 K1 만 끈 뒤 이 시간 뒤 자동 복구
+#define K1_TEST_MS 5000
+
 // ===== 서버 전송 =====
 const char* SERVER_URL = "https://chargesafe-zc39.onrender.com/api/ingest/readings";
 // 로컬 PC 서버로 테스트할 때 (PC와 ESP32가 같은 와이파이·핫스팟이어야 함):
@@ -184,6 +188,11 @@ CutState cutState = CUT_NONE;
 unsigned long cutStamp = 0, tripStart = 0, normalSince = 0, recoverWindowStart = 0;
 int leakCount = 0, okCount = 0, recoverCount = 0;
 bool recoverLocked = false;
+
+// ===== K1 단독 차단 시험 ('k') =====
+bool k1Test = false;          // 시험 중 (K1 만 꺼 둔 상태)
+bool k1TestChecked = false;   // 차단 결과를 이미 확인했는지
+unsigned long k1TestStart = 0;
 
 // ===== 알고리즘 상태 =====
 enum Reason {
@@ -367,7 +376,7 @@ void printAllThr() {
 
 void printHelp() {
   Serial.println("[시험 명령] t=전류 원인 차단 / b=온도 즉시 차단 / s=단락 의심 / r=해제 / "
-                 "1=K1 고장 시뮬 토글 / 2=K2 고장 시뮬 토글 / i=기준값 출력 / h=도움말");
+                 "k=K1 단독 차단(5초 뒤 복구) / 1=K1 고장 시뮬 토글 / 2=K2 고장 시뮬 토글 / i=기준값 출력 / h=도움말");
 }
 
 // ---------- RGB LED ----------
@@ -380,6 +389,8 @@ void ledWrite(bool r, bool g, bool b) {
 void updateLed(unsigned long now) {
   if (estopPressed) {
     ledWrite((now % 1000) < 500, false, false);          // 비상정지: 빨강 천천히 깜빡
+  } else if (k1Test) {
+    ledWrite(false, false, ((now / 250) % 2) == 0);      // K1 단독 차단 시험: 파랑 깜빡
   } else if (cutState == CUT_FAILED) {
     bool on = ((now / 100) % 2) == 0;                    // 차단 실패: 자홍색 아주 빠른 깜빡
     ledWrite(on, false, on);
@@ -488,13 +499,19 @@ void updateLcd() {
   int phase = (now / 1500) % 3;
 
   if (estopPressed)                 snprintf(a, sizeof(a), "EMERGENCY STOP");
+  else if (k1Test)                  snprintf(a, sizeof(a), "TEST: K1 ONLY");
   else if (cutState == CUT_FAILED)  snprintf(a, sizeof(a), "!! CUT FAILED !!");
   else if (tripped)                 snprintf(a, sizeof(a), tripLevel == 2 ? "DANGER! 2nd CUT" : "DANGER! 1st CUT");
   else if (alertLevel == 2)         snprintf(a, sizeof(a), "WARNING");
   else if (alertLevel == 1)         snprintf(a, sizeof(a), "CAUTION");
   else                              snprintf(a, sizeof(a), "STATUS: NORMAL");
 
-  if (!estopPressed && cutState == CUT_FAILED) {
+  if (!estopPressed && k1Test) {
+    // 지금 전류와 복구까지 남은 시간 — 전류가 0 이면 K1 혼자 끊은 것
+    long remain = ((long)K1_TEST_MS - (long)(now - k1TestStart) + 999) / 1000;
+    if (remain < 0) remain = 0;
+    snprintf(b, sizeof(b), "I:%.0fmA BACK %lds", currentmA, remain);
+  } else if (!estopPressed && cutState == CUT_FAILED) {
     snprintf(b, sizeof(b), alt ? "PRESS E-STOP!" : "UNPLUG POWER!");
   } else if (!estopPressed && tripped) {
     if (phase == 0) {
@@ -826,6 +843,7 @@ void monitorCut(unsigned long now) {
 // ---------- 수동 해제 / 자동 재가동 ----------
 // 다시 켤 때 공통: 차단 상태를 지우고, 재가동 전 서버 응답의 차단 지시는 무효로 한다
 void clearTrip(unsigned long now) {
+  k1Test = false;
   tripped = false;
   tripLevel = 0;
   tripCode = nullptr;
@@ -884,9 +902,46 @@ void tryRecover(unsigned long now) {
   }
 }
 
+// ---------- K1 단독 차단 시험 ('k') ----------
+// 위험 판단과 무관하게 K1 만 끄고, K2 로 넘기지 않는다. K1 혼자 회로를 끊을 수 있는지 확인하는 용도.
+void startK1Test(unsigned long now) {
+  if (k1Test || tripped || estopPressed || !relaysOn) {
+    Serial.println("[시험] K1 단독 차단은 정상 동작 중(K1·K2 ON)에만 할 수 있습니다");
+    return;
+  }
+  Serial.printf("[시험] K1 단독 차단 — K2 는 그대로, %lu초 뒤 자동 복구\n", K1_TEST_MS / 1000UL);
+  k1Test = true;
+  k1TestChecked = false;
+  k1TestStart = now;
+  setRelay(RELAY_K1, false);
+  beep(100);
+}
+
+void updateK1Test(unsigned long now) {
+  if (!k1Test) return;
+
+  // 끈 지 CUT_VERIFY_MS 뒤에 전류를 한 번 재서 결과를 알려 준다
+  if (!k1TestChecked && now - k1TestStart >= CUT_VERIFY_MS) {
+    k1TestChecked = true;
+    float c = ina219OK ? ina219.getCurrent_mA() : 0;
+    if (fabs(c) < 5) c = 0;
+    if (!ina219OK)              Serial.println("[시험 결과] INA219 이상 — 전류로 확인 불가, 팬이 멈췄는지 눈으로 확인");
+    else if (c > CUT_VERIFY_MA) Serial.printf("[시험 결과] K1 차단 실패 — 전류 %.0fmA 지속 (K1 이 떨어지지 않음)\n", c);
+    else                        Serial.printf("[시험 결과] K1 차단 성공 — 전류 %.0fmA\n", c);
+  }
+
+  if (now - k1TestStart >= K1_TEST_MS) {
+    k1Test = false;
+    setRelay(RELAY_K1, true);
+    resetAlgorithm(now);                  // 시험 중 0mA 평균을 지우고, 재가동 돌입전류는 유예
+    beep(150);
+    Serial.println("[시험] K1 복구 → 정상 동작");
+  }
+}
+
 // ---------- 시리얼 시험 명령 (측정값과 무관하게 차단/재가동 로직만 시험) ----------
 void forceCut(Reason r, unsigned long now, const char* msg) {
-  if (tripped || estopPressed) return;
+  if (tripped || estopPressed || k1Test) return;
   Serial.println(msg);
   alertReason = r;
   alertLevel = 3;
@@ -899,6 +954,7 @@ void handleSerialTest(unsigned long now) {
     if (ch == 't')      forceCut(R_CURRENT, now, "[시험] 전류 원인 차단 강제 실행 (K1만, 시험형 재가동)");
     else if (ch == 'b') forceCut(R_EMERG_TEMP, now, "[시험] 온도 즉시 차단 강제 실행 (K1·K2, 조건형 재가동)");
     else if (ch == 's') forceCut(R_SHORT, now, "[시험] 단락 의심 차단 강제 실행 (K1·K2, 수동 해제)");
+    else if (ch == 'k') startK1Test(now);
     else if (ch == '1') { simK1Stuck = !simK1Stuck; Serial.printf("[시험] K1 고장 시뮬레이션 %s\n", simK1Stuck ? "ON" : "OFF"); }
     else if (ch == '2') { simK2Stuck = !simK2Stuck; Serial.printf("[시험] K2 고장 시뮬레이션 %s\n", simK2Stuck ? "ON" : "OFF"); }
     else if (ch == 'i') printAllThr();
@@ -1143,6 +1199,7 @@ void loop() {
     estopPressed = rawEstop;
     if (estopPressed) {
       alarmStart = now;
+      k1Test = false;                     // K1 시험 중이었다면 취소 (해제 때 함께 재가동)
       setRelays(false);
       Serial.println("[비상정지] 눌림 → 릴레이 OFF, 팬 정지");
     } else {
@@ -1153,8 +1210,9 @@ void loop() {
   }
 #endif
 
-  // 2) 차단 후 확인 (논블로킹)
+  // 2) 차단 후 확인 + K1 단독 시험 진행 (논블로킹)
   updateCut(now);
+  updateK1Test(now);
 
   // 3) 1초마다 센서 읽기 → 평균 → 알고리즘 / 차단 후 감시 / 재가동
   if (now - lastSense >= 1000) {
@@ -1187,9 +1245,11 @@ void loop() {
       avgVolt.add(busV);
     }
 
-    publishReading();                     // 통신 태스크가 가져갈 최신 값
+    // 통신 태스크가 가져갈 최신 값.
+    // K1 시험 중에는 갱신하지 않는다 — 전류 0 을 서버가 "충전 완료"로 오해해 기록을 닫지 않도록 직전 값을 유지
+    if (!k1Test) publishReading();
 
-    if (relaysOn && !estopPressed && !tripped && now > graceUntil) {
+    if (relaysOn && !estopPressed && !tripped && !k1Test && now > graceUntil) {
       evaluate(now);
       if (alertLevel >= 3) {
         startCut(alertReason, now);
@@ -1210,7 +1270,7 @@ void loop() {
                   tempChgrOK ? tempChgr : NAN, avgChgr.mean(),
                   currentmA, avgCur.mean(), busV, avgVolt.mean(),
                   k1On ? "ON" : "OFF", k2On ? "ON" : "OFF",
-                  estopPressed ? "비상정지" : (cutState == CUT_FAILED) ? "차단실패" : tripped ? "위험차단" : levelName(alertLevel),
+                  estopPressed ? "비상정지" : k1Test ? "K1시험" : (cutState == CUT_FAILED) ? "차단실패" : tripped ? "위험차단" : levelName(alertLevel),
                   reasonText(alertReason), wifiUp ? "연결" : "끊김");
   }
 
